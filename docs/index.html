@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Insider Radar</title>
+<meta name="description" content="Meaningful open-market stock purchases by C-suite executives, from SEC Form 4 filings.">
+<meta name="theme-color" content="#07121b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Insider Radar">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --panel2: #f0f2f5; --text: #111827; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #1f5eff; --accent-soft: #e8efff;
+  --vs: #0f7b4a; --s: #2f9e6a; --n: #b7791f; --m: #8a919c;
+  --pos: #0f7b4a; --neg: #c0262d; --warn-bg: #fff6e0; --warn: #8a5a00;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07);
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220; --panel: #131b2c; --panel2: #1a2438; --text: #e8ecf3; --muted: #97a1b3; --line: #243049;
+    --accent: #7aa2ff; --accent-soft: #1b2a4a;
+    --vs: #3ecf8e; --s: #86dbb0; --n: #e7b25a; --m: #7f889a;
+    --pos: #3ecf8e; --neg: #ff7a7f; --warn-bg: #2e2513; --warn: #f2c56f; --shadow: none;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding-bottom: calc(64px + var(--safe-b)); overscroll-behavior-y: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, select { font: inherit; color: var(--text); }
+a { color: var(--accent); text-decoration: none; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+
+/* app bar */
+.appbar { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+  padding-top: var(--safe-t); border-bottom: 1px solid var(--line); }
+.appbar .wrap { display: flex; align-items: center; gap: 12px; height: 54px; }
+.appbar h1 { font-size: 19px; margin: 0; letter-spacing: -.02em; flex: 1; }
+.appbar .logo { width: 34px; height: 34px; border-radius: 8px; flex: none; }
+.appbar .upd { font-size: 12px; color: var(--muted); font-weight: 400; display: block; letter-spacing: 0; }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--accent); }
+.iconbtn:active { background: var(--accent-soft); }
+.iconbtn svg { width: 22px; height: 22px; }
+.spin svg { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+
+/* tab bar */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: color-mix(in srgb, var(--panel) 92%, transparent);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding-bottom: var(--safe-b); }
+.tabbar .wrap { display: flex; justify-content: space-around; height: 58px; }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; color: var(--muted); }
+.tab svg { width: 24px; height: 24px; }
+.tab[aria-selected=true] { color: var(--accent); font-weight: 600; }
+
+/* controls */
+.controls { display: flex; gap: 8px; margin: 14px 0 10px; }
+.search { flex: 1; min-width: 0; height: 40px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); padding: 0 12px; }
+.pill { height: 40px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pill .badge { background: var(--accent); color: #fff; border-radius: 99px; font-size: 11px; padding: 1px 6px; font-weight: 700; }
+select.pill { appearance: none; -webkit-appearance: none; padding-right: 14px; }
+.summary { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; scrollbar-width: none; }
+.summary::-webkit-scrollbar { display: none; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; min-width: 104px; box-shadow: var(--shadow); }
+.stat b { display: block; font-size: 18px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11.5px; color: var(--muted); }
+
+/* cards */
+.list { display: grid; gap: 10px; }
+@media (min-width: 760px) { .list { grid-template-columns: 1fr 1fr; } }
+.card { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 16px; padding: 12px; box-shadow: var(--shadow); }
+.card:active { transform: scale(.99); }
+.ring { --p: 50; --c: var(--accent); width: 50px; height: 50px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--panel2) 0); }
+.ring span { width: 40px; height: 40px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; font-weight: 750; font-size: 16px; font-variant-numeric: tabular-nums; }
+.cmain { flex: 1; min-width: 0; }
+.l1 { display: flex; gap: 6px; align-items: baseline; }
+.tk { font-weight: 750; font-size: 16px; }
+.co { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l2 { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+.tag { font-size: 10.5px; font-weight: 650; letter-spacing: .02em; border-radius: 6px; padding: 2px 6px; background: var(--panel2); color: var(--muted); }
+.tag.good { background: color-mix(in srgb, var(--vs) 14%, transparent); color: var(--vs); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.cright { text-align: right; flex: none; }
+.cright .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cright .d { font-size: 12px; color: var(--muted); }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 14px 2px; }
+.banner { background: var(--warn-bg); color: var(--warn); border-radius: 12px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+
+/* sheet */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; top: calc(var(--safe-t) + 28px); z-index: 21; background: var(--bg);
+  border-radius: 18px 18px 0 0; transform: translateY(105%); transition: transform .25s ease, visibility 0s linear .25s; visibility: hidden;
+  display: flex; flex-direction: column; }
+.sheet.open { transform: none; visibility: visible; transition: transform .25s ease; }
+@media (min-width: 900px) { .sheet { left: auto; top: 0; width: 480px; border-radius: 0; transform: translateX(105%); border-left: 1px solid var(--line); } }
+.sheethead { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px 16px; }
+.sheethead h2 { flex: 1; margin: 0; font-size: 17px; }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 0; }
+@media (min-width: 900px) { .grab { display: none; } }
+.sheetbody { overflow-y: auto; padding: 0 16px calc(24px + var(--safe-b)); -webkit-overflow-scrolling: touch; }
+.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 10px 0; }
+.sec h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+ul.why { margin: 0; padding-left: 18px; } ul.why li { margin: 4px 0; font-size: 14px; }
+.comp { display: grid; grid-template-columns: 1fr 90px 44px; gap: 8px; align-items: center; font-size: 13px; margin: 7px 0; }
+.bar { height: 7px; border-radius: 99px; background: var(--panel2); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.hero { display: flex; gap: 14px; align-items: center; margin: 6px 0 4px; }
+.hero .ring { width: 72px; height: 72px; } .hero .ring span { width: 58px; height: 58px; font-size: 24px; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.btn { height: 40px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: .5; }
+
+/* filters */
+.fgroup { margin: 14px 0; }
+.fgroup > div:first-child { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { height: 34px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); font-size: 13.5px; }
+.chip[aria-pressed=true] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 650; }
+.toggle { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.toggle input { width: 44px; height: 26px; appearance: none; -webkit-appearance: none; background: var(--line); border-radius: 99px; position: relative; transition: background .15s; flex: none; }
+.toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.toggle input:checked { background: var(--vs); } .toggle input:checked::after { transform: translateX(18px); }
+
+/* backtest */
+table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+table.t th, table.t td { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+table.t th:first-child, table.t td:first-child { text-align: left; }
+table.t th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.big { font-size: 28px; font-weight: 750; letter-spacing: -.02em; }
+svg.chart text { fill: var(--muted); font-size: 11px; }
+.progress { height: 6px; background: var(--panel2); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+.progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.field { width: 100%; height: 42px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); padding: 0 12px; }
+.steps { margin: 0; padding-left: 20px; font-size: 14px; } .steps li { margin: 6px 0; }
+
+/* congress */
+:root { --dem: #2563c9; --rep: #c8323c; }
+.pbadge { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 750; font-size: 16px; color: #fff; background: var(--m); }
+.pbadge.p-D { background: var(--dem); } .pbadge.p-R { background: var(--rep); }
+.hero .pbadge { width: 60px; height: 60px; font-size: 22px; }
+.act { display: inline-block; font-weight: 700; font-size: 12.5px; border-radius: 6px; padding: 2px 8px; margin-bottom: 2px; }
+.act.buy { background: color-mix(in srgb, var(--vs) 14%, transparent); color: var(--vs); }
+.act.sell { background: color-mix(in srgb, var(--neg) 12%, transparent); color: var(--neg); }
+.act.other { background: var(--panel2); color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="wrap">
+    <img class="logo" src="icons/icon-180.png" alt="">
+    <h1>Insider Radar <span class="upd" id="upd">Loading…</span></h1>
+    <button class="iconbtn" id="refresh" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap" id="view"></main>
+
+<nav class="tabbar" role="tablist">
+  <div class="wrap">
+    <button class="tab" role="tab" data-tab="trades" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Buys</button>
+    <button class="tab" role="tab" data-tab="congress" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M4 10h16M12 3l8 5H4l8-5zM6 10v8M10 10v8M14 10v8M18 10v8"/></svg>Congress</button>
+    <button class="tab" role="tab" data-tab="backtest" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Backtest</button>
+    <button class="tab" role="tab" data-tab="about" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>About</button>
+  </div>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" aria-modal="true" role="dialog">
+  <div class="grab"></div>
+  <div class="sheethead"><h2 id="sheetTitle"></h2>
+    <button class="iconbtn" id="sheetClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="sheetbody" id="sheetBody"></div>
+</section>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const ROLES = ["CEO", "CFO", "COO", "President", "CTO", "Other C-suite", "Chair"];
+const SIG = { "Very strong": "var(--vs)", "Strong": "var(--s)", "Notable": "var(--n)", "Minor": "var(--m)" };
+const RED_FLAGS = /going-concern|material weakness|listing deficiency|covenant/i;
+const DEFAULT_FILTERS = { roles: ROLES.slice(0, 6), minValue: 100000, minScore: 0, withinDays: 30, hidePlan: false, clusterOnly: false,
+  hideRedFlags: false, hideNewExec: false, q: "", sort: "score" };
+
+let DATA = null, BT = null, BT_LOADED = false, LOCAL = null, TAB = "trades", OFFLINE = false;
+let F = load("ibr-filters", DEFAULT_FILTERS);
+
+function load(key, dflt) { try { return { ...dflt, ...JSON.parse(localStorage.getItem(key) || "{}") }; } catch (e) { return { ...dflt }; } }
+function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+
+// ------------------------------------------------------------ formatting
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (v) => { if (v == null || isNaN(v)) return "—"; const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e9) return s + "$" + (a / 1e9).toFixed(1) + "B"; if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(a >= 1e7 ? 1 : 2) + "M";
+  if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(0) + "K"; return s + "$" + a.toFixed(0); };
+const num = (v) => v == null ? "—" : Math.round(v).toLocaleString();
+const pct = (v, d = 0, sign = false) => v == null || isNaN(v) ? "—" : (sign && v > 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const tcase = (s) => String(s || "").toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+const person = (s) => { const p = String(s || "").split(/\s+/); return tcase(p.length > 1 ? p.slice(1).join(" ") + " " + p[0] : s); };
+const sdate = (d) => { if (!d) return "—"; const x = new Date(d + "T12:00:00"); return x.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+const daysAgo = (d) => Math.floor((Date.now() - new Date(d + "T12:00:00")) / 864e5);
+const ring = (score, sig, cls = "") => `<div class="ring ${cls}" style="--p:${Math.max(3, score)};--c:${SIG[sig]}"><span>${Math.round(score)}</span></div>`;
+
+// ------------------------------------------------------------ data
+const CACHE_NAME = "insider-radar-v4";
+async function fetchJSON(url) {
+  const u = new URL(url, location.href), key = u.origin + u.pathname;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    if (res.headers.get("X-From-Cache")) OFFLINE = true;
+    else if (window.caches) { try { const c = await caches.open(CACHE_NAME); await c.put(key, res.clone()); } catch (e) {} }
+    return await res.json();
+  } catch (err) {
+    // Offline (or the server is unreachable): fall back to the last copy saved on this phone
+    const hit = window.caches ? await caches.match(key).catch(() => null) : null;
+    if (!hit) throw err;
+    OFFLINE = true;
+    return hit.json();
+  }
+}
+async function loadData() {
+  OFFLINE = false;
+  $("refresh").classList.add("spin");
+  try { DATA = await fetchJSON("data/latest.json?t=" + Date.now()); }
+  catch (e) { if (!DATA) DATA = { meta: null, rows: [] }; OFFLINE = true; }
+  if (BT_LOADED) { BT_LOADED = false; }
+  $("refresh").classList.remove("spin");
+  renderHeader(); render();
+}
+async function loadBacktest() {
+  if (BT_LOADED) return;
+  BT_LOADED = true;
+  try { BT = await fetchJSON("data/backtest.json?t=" + Date.now()); } catch (e) { BT = null; }
+}
+function renderHeader() {
+  const m = DATA && DATA.meta;
+  if (!m) { $("upd").textContent = OFFLINE ? "Offline — no saved data yet" : "No scan yet"; return; }
+  const t = new Date(m.scanned_at);
+  const when = t.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  $("upd").textContent = `${OFFLINE ? "Offline · " : ""}Updated ${when} · last ${daysBetween(m.from, m.to)} days`;
+}
+const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5) + 1;
+
+// ------------------------------------------------------------ trades
+function tagsFor(r, full = false) {
+  const t = [];
+  if (r.new_position) t.push(["New position", "good"]);
+  else if (r.history && r.history.prior_buys && r.history.prior_buys.length === 0) t.push(["First buy in 3y", "good"]);
+  if (r.cluster_others > 0) t.push([`Cluster +${r.cluster_others}`, "good"]);
+  if (r.routine === "opportunistic") t.push(["One-off", "good"]);
+  if (r.routine === "routine") t.push(["Routine", ""]);
+  if (r.plan_10b5_1) t.push(["10b5-1", "warn"]);
+  if (r.new_exec) t.push(["New exec", "warn"]);
+  (r.flags || []).filter((f) => RED_FLAGS.test(f)).forEach((f) => t.push([f.replace(/ \(latest.*\)/, ""), "warn"]));
+  if (r.late) t.push(["Filed late", "warn"]);
+  if (r.amended) t.push(["Amended", ""]);
+  return (full ? t : t.slice(0, 4)).map(([x, c]) => `<span class="tag ${c}">${esc(x)}</span>`).join("");
+}
+function filtered() {
+  if (!DATA) return [];
+  const q = F.q.trim().toLowerCase();
+  const list = DATA.rows.filter((r) => F.roles.includes(r.role) && r.value >= F.minValue && r.score >= F.minScore &&
+    daysAgo(r.filed) < F.withinDays && (!F.hidePlan || !r.plan_10b5_1) && (!F.clusterOnly || r.cluster_others > 0) &&
+    (!F.hideNewExec || !r.new_exec) && (!F.hideRedFlags || !(r.flags || []).some((f) => RED_FLAGS.test(f))) &&
+    (!q || [r.ticker, r.company, r.insider].some((s) => (s || "").toLowerCase().includes(q))));
+  const key = { score: (r) => -r.score, newest: (r) => -new Date(r.filed) - r.score / 1000, value: (r) => -r.value }[F.sort];
+  return list.sort((a, b) => key(a) - key(b));
+}
+function activeFilterCount() {
+  let n = 0; const d = DEFAULT_FILTERS;
+  if (F.roles.join() !== d.roles.join()) n++; if (F.minValue !== d.minValue) n++; if (F.minScore !== d.minScore) n++;
+  if (F.withinDays !== d.withinDays) n++; ["hidePlan", "clusterOnly", "hideRedFlags", "hideNewExec"].forEach((k) => F[k] && n++);
+  return n;
+}
+function renderTrades() {
+  const list = filtered();
+  const n = activeFilterCount();
+  const total = list.reduce((s, r) => s + r.value, 0);
+  const vs = list.filter((r) => r.score >= 70).length;
+  const cards = list.map((r) => {
+    const since = r.price_ctx && r.price_ctx.since_trade;
+    return `<button class="card" data-id="${esc(r.id)}">
+      ${ring(r.score, r.signal)}
+      <div class="cmain">
+        <div class="l1"><span class="tk">${esc(r.ticker || "—")}</span><span class="co">${esc(tcase(r.company))}</span></div>
+        <div class="l2">${esc(person(r.insider))} · ${esc(r.role)}</div>
+        <div class="tags">${tagsFor(r)}</div>
+      </div>
+      <div class="cright"><div class="v">${money(r.value)}</div><div class="d">${sdate(r.trade_date)}</div>
+        ${since != null ? `<div class="d ${since >= 0 ? "pos" : "neg"}">${pct(since, 1, true)}</div>` : ""}</div>
+    </button>`;
+  }).join("");
+  const empty = !DATA || !DATA.meta
+    ? `<div class="empty">${LOCAL ? "No scan yet. Open <b>About</b> and press <b>Scan now</b>." : "No data yet. The first daily scan hasn't finished — check back later."}</div>`
+    : `<div class="empty">No buys match your filters.<br><button class="btn" style="margin-top:12px" id="resetF">Reset filters</button></div>`;
+  $("view").innerHTML = `
+    <div class="controls">
+      <input class="search" id="q" type="search" placeholder="Ticker, company or name" value="${esc(F.q)}" autocomplete="off">
+      <button class="pill" id="openFilters">Filters${n ? ` <span class="badge">${n}</span>` : ""}</button>
+      <select class="pill" id="sort" aria-label="Sort">
+        <option value="score"${F.sort === "score" ? " selected" : ""}>Top</option>
+        <option value="newest"${F.sort === "newest" ? " selected" : ""}>New</option>
+        <option value="value"${F.sort === "value" ? " selected" : ""}>$</option>
+      </select>
+    </div>
+    ${DATA && DATA.meta ? `<div class="summary">
+      <div class="stat"><b>${list.length}</b><span>C-suite buys</span></div>
+      <div class="stat"><b>${money(total)}</b><span>Total bought</span></div>
+      <div class="stat"><b style="color:var(--vs)">${vs}</b><span>Very strong</span></div>
+      <div class="stat"><b>${new Set(list.map((r) => r.issuer_cik)).size}</b><span>Companies</span></div>
+    </div>` : ""}
+    ${OFFLINE && DATA && DATA.meta ? `<div class="banner">You're offline — showing the last saved scan.</div>` : ""}
+    <div class="list">${list.length ? cards : empty}</div>
+    ${list.length ? `<p class="note">Tap a buy to see why it scored the way it did. Not investment advice.</p>` : ""}`;
+  $("q").oninput = (e) => { F.q = e.target.value; save("ibr-filters", F); const pos = e.target.selectionStart; renderTrades(); const q = $("q"); q.focus(); q.setSelectionRange(pos, pos); };
+  $("sort").onchange = (e) => { F.sort = e.target.value; save("ibr-filters", F); renderTrades(); };
+  $("openFilters").onclick = openFilters;
+  if ($("resetF")) $("resetF").onclick = () => { F = { ...DEFAULT_FILTERS, roles: DEFAULT_FILTERS.roles.slice() }; save("ibr-filters", F); renderTrades(); };
+  document.querySelectorAll(".card").forEach((c) => c.onclick = () => { location.hash = "t=" + c.dataset.id; });
+}
+
+// ------------------------------------------------------------ detail
+function kv(pairs) { return `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`; }
+function renderDetail(id) {
+  const r = DATA && DATA.rows.find((x) => x.id === id);
+  if (!r) return false;
+  const L = (DATA.meta && DATA.meta.labels) || {};
+  const W = (DATA.meta && DATA.meta.weights) || {};
+  const pc = r.price_ctx, fin = r.financials || {}, h = r.history, t = r.timing, net = r.net90, tr = r.track, rep = r.report;
+  const earned = Object.values(r.components).reduce((a, b) => a + b, 0), avail = Object.values(r.components_max).reduce((a, b) => a + b, 0);
+  const comps = Object.keys(W).filter((k) => W[k] > 0).map((k) => k in r.components
+    ? `<div class="comp"><span>${esc(L[k] || k)}</span><div class="bar"><i style="width:${(r.components[k] / r.components_max[k]) * 100}%"></i></div><span style="text-align:right;color:var(--muted)">${r.components[k]}/${r.components_max[k]}</span></div>`
+    : `<div class="comp" style="color:var(--muted)"><span>${esc(L[k] || k)}</span><span style="grid-column:span 2;text-align:right;font-size:12px">no data</span></div>`).join("");
+  const hist = h ? (h.prior_buys.length
+      ? h.prior_buys.slice(-6).reverse().map((b) => `<li>${sdate(b.date)} ${b.date.slice(0, 4)} — bought ${money(b.value)}</li>`).join("")
+      : "<li>No open-market buys in the prior 3 years</li>") + (h.prior_sales_n ? `<li>${h.prior_sales_n} sale filing(s), ${money(h.prior_sales_value)} in total</li>` : "")
+    : `<li style="color:var(--muted)">Not checked (below the size threshold for deep checks)</li>`;
+  const routineTxt = { routine: "Routine — trades in this month every year", opportunistic: "One-off — no fixed yearly pattern" }[r.routine] || "Not enough history to tell";
+  $("sheetTitle").textContent = r.ticker || tcase(r.company);
+  $("sheetBody").innerHTML = `
+    <div class="hero">${ring(r.score, r.signal)}
+      <div><div style="font-weight:700;font-size:17px">${esc(tcase(r.company))}</div>
+      <div style="color:var(--muted);font-size:14px">${esc(person(r.insider))} · ${esc(r.title || r.role)}</div>
+      <div style="color:${SIG[r.signal]};font-weight:700;font-size:14px;margin-top:2px">${r.signal}</div></div></div>
+    <div class="tags" style="margin:8px 0 4px">${tagsFor(r, true)}</div>
+
+    <div class="sec"><h3>Why it scored ${Math.round(r.score)}</h3><ul class="why">${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+
+    <div class="sec"><h3>Score breakdown</h3>${comps}
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">${earned.toFixed(1)} of ${avail} available points = ${(100 * earned / avail).toFixed(0)}${r.multipliers.length ? ", then " + esc(r.multipliers.join(", ")) : ""}.</div></div>
+
+    <div class="sec"><h3>The trade</h3>${kv([
+      ["Traded", `${sdate(r.trade_date)}${r.trade_date_last !== r.trade_date ? " – " + sdate(r.trade_date_last) : ""} (${r.n_lots} lot${r.n_lots > 1 ? "s" : ""})`],
+      ["Filed with SEC", `${sdate(r.filed)}${r.late ? ` <span class="tag warn">${r.filing_lag_bdays} biz days</span>` : ""}`],
+      ["Shares", `${num(r.shares)} @ $${r.avg_price.toFixed(2)}`],
+      ["Value", `<b>${money(r.value)}</b>`],
+      ["Total stake", r.holdings_before != null ? `${num(r.holdings_before)} → ${num(r.holdings_after)}` : "—"],
+      r.indirect_after ? ["  of which indirect", `${num(r.indirect_after)} (trusts, family…)`] : null,
+      r.options_held ? ["Options / RSUs held", num(r.options_held)] : null,
+      ["Stake increase", r.new_position ? "New position" : pct(r.pct_increase) + (r.pct_increase_incl_options != null && r.options_held ? ` (${pct(r.pct_increase_incl_options)} incl. options)` : "")],
+      r.pay_ratio != null ? ["Vs. CEO's annual pay", `${pct(r.pay_ratio)} of ${money(r.ceo_pay)}`] : null,
+      r.volume_ratio != null ? ["Vs. daily volume", `${r.volume_ratio.toFixed(2)} days of trading`] : null,
+      ["10b5-1 plan", r.plan_10b5_1 ? "Yes" : "No"],
+    ])}</div>
+
+    <div class="sec"><h3>Company</h3>${kv([
+      ["Market cap at trade", money(r.mcap)],
+      r.mcap_today ? ["Market cap today", money(r.mcap_today)] : null,
+      r.bps_of_mcap != null ? ["Trade as % of company", (r.bps_of_mcap / 100).toFixed(r.bps_of_mcap < 1 ? 4 : 3) + "%"] : null,
+      fin.revenue_q != null ? [`Revenue (${esc(fin.revenue_quarter)})`, money(fin.revenue_q) + (fin.revenue_yoy != null ? ` <span class="${fin.revenue_yoy >= 0 ? "pos" : "neg"}">${pct(fin.revenue_yoy, 0, true)} YoY</span>` : "")] : null,
+      fin.net_income_ttm != null ? ["Net income (last 4 qtrs)", `<span class="${fin.net_income_ttm >= 0 ? "" : "neg"}">${money(fin.net_income_ttm)}</span>`] : null,
+      fin.cash != null ? ["Cash", money(fin.cash)] : null,
+      fin.debt != null ? ["Long-term debt", money(fin.debt)] : null,
+      rep ? [`Latest ${esc(rep.form)}`, `<a href="${esc(rep.url)}" target="_blank" rel="noopener">${sdate(rep.filed)} ↗</a>`] : null,
+      rep ? ["Red flags in it", rep.flags.length ? `<span style="color:var(--warn)">${esc(rep.flags.join(", "))}</span>` : "None found"] : null,
+    ])}</div>
+
+    ${pc || t ? `<div class="sec"><h3>Price & timing</h3>${kv([
+      pc ? ["52-week range", `$${pc.low_52w.toFixed(2)} – $${pc.high_52w.toFixed(2)}`] : null,
+      pc ? ["Below 52-week high", pct(pc.below_high)] : null,
+      pc && pc.return_3m_before != null ? ["3 months before trade", `<span class="${pc.return_3m_before >= 0 ? "pos" : "neg"}">${pct(pc.return_3m_before, 1, true)}</span>`] : null,
+      pc && pc.since_trade != null ? ["Since the trade", `<span class="${pc.since_trade >= 0 ? "pos" : "neg"}">${pct(pc.since_trade, 1, true)}</span>`] : null,
+      t ? ["Last results", `${esc(t.last_event)} · ${sdate(t.last_event_date)} (${t.days_since} days before)`] : null,
+      t && t.next_actual ? ["Next report", `${esc(t.next_actual_form)} filed ${sdate(t.next_actual)}`] : t && t.next_expected ? ["Next report (est.)", sdate(t.next_expected)] : null,
+    ])}</div>` : ""}
+
+    <div class="sec"><h3>Insider</h3>${kv([
+      ["Trading pattern", routineTxt],
+      r.insider_since ? ["Insider since", /^\d/.test(r.insider_since) ? sdate(r.insider_since) + " " + r.insider_since.slice(0, 4) : esc(r.insider_since)] : null,
+      tr ? ["Past buys vs S&P (6m)", `<span class="${tr.avg_excess_6m >= 0 ? "pos" : "neg"}">${pct(tr.avg_excess_6m, 0, true)}</span> avg · ${tr.n} buys · ${pct(tr.hit_rate)} beat`] : null,
+      ["Others buying (window)", r.cluster_others || "None"],
+      net ? ["Others, last 90 days", `bought ${money(net.buys)} · sold ${money(net.sells)}`] : null,
+    ])}
+      <div style="font-size:13px;margin-top:10px;font-weight:600">Their trades in this stock (3 yrs)</div><ul class="why" style="margin-top:4px">${hist}</ul></div>
+
+    <div class="btnrow"><a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">SEC filing ↗</a>
+      ${r.ticker ? `<a class="btn" href="https://finance.yahoo.com/quote/${encodeURIComponent(r.ticker)}" target="_blank" rel="noopener">Quote ↗</a>` : ""}</div>
+    <p class="note">Scores are a research heuristic, not investment advice.</p>`;
+  openSheet();
+  return true;
+}
+
+// ------------------------------------------------------------ filters
+function openFilters() {
+  $("sheetTitle").textContent = "Filters";
+  const chips = (key, opts, fmt) => `<div class="chips">${opts.map((o) => `<button class="chip" data-k="${key}" data-v="${o}" aria-pressed="${F[key] === o}">${fmt(o)}</button>`).join("")}</div>`;
+  $("sheetBody").innerHTML = `
+    <div class="fgroup"><div>Roles</div><div class="chips">${ROLES.map((r) => `<button class="chip" data-role="${r}" aria-pressed="${F.roles.includes(r)}">${r}</button>`).join("")}</div></div>
+    <div class="fgroup"><div>Minimum trade size</div>${chips("minValue", [0, 50000, 100000, 250000, 500000, 1000000], (v) => v ? (v >= 1e6 ? "$" + v / 1e6 + "M+" : money(v) + "+") : "Any")}</div>
+    <div class="fgroup"><div>Minimum score</div>${chips("minScore", [0, 30, 50, 70], (v) => v ? v + "+" : "Any")}</div>
+    <div class="fgroup"><div>Filed within</div>${chips("withinDays", [1, 3, 7, 14, 30], (v) => v === 1 ? "Today" : v + " days")}</div>
+    <div class="fgroup">
+      ${[["clusterOnly", "Only when other insiders also bought"], ["hidePlan", "Hide pre-scheduled 10b5-1 buys"],
+         ["hideNewExec", "Hide new executives (< 6 months)"], ["hideRedFlags", "Hide companies with red flags in their 10-Q"]]
+        .map(([k, l]) => `<label class="toggle">${l}<input type="checkbox" data-t="${k}" ${F[k] ? "checked" : ""}></label>`).join("")}
+    </div>
+    <div class="btnrow"><button class="btn" id="fReset">Reset</button><button class="btn primary" id="fDone" style="flex:1">Show results</button></div>`;
+  const body = $("sheetBody");
+  body.querySelectorAll("[data-role]").forEach((b) => b.onclick = () => {
+    const r = b.dataset.role; F.roles = F.roles.includes(r) ? F.roles.filter((x) => x !== r) : F.roles.concat(r);
+    b.setAttribute("aria-pressed", F.roles.includes(r)); changed(); });
+  body.querySelectorAll("[data-k]").forEach((b) => b.onclick = () => {
+    F[b.dataset.k] = +b.dataset.v; body.querySelectorAll(`[data-k="${b.dataset.k}"]`).forEach((x) => x.setAttribute("aria-pressed", x === b)); changed(); });
+  body.querySelectorAll("[data-t]").forEach((i) => i.onchange = () => { F[i.dataset.t] = i.checked; changed(); });
+  $("fReset").onclick = () => { F = { ...DEFAULT_FILTERS, roles: DEFAULT_FILTERS.roles.slice(), q: F.q, sort: F.sort }; changed(); openFilters(); };
+  $("fDone").onclick = closeSheet;
+  function changed() { save("ibr-filters", F); renderTrades(); $("fDone").textContent = `Show ${filtered().length} results`; }
+  $("fDone").textContent = `Show ${filtered().length} results`;
+  openSheet(true);
+}
+
+// ------------------------------------------------------------ sheet plumbing
+let sheetIsFilter = false;
+function openSheet(isFilter = false) { sheetIsFilter = isFilter; $("sheet").classList.add("open"); $("scrim").classList.add("open"); $("sheetBody").scrollTop = 0; }
+function closeSheet() {
+  $("sheet").classList.remove("open"); $("scrim").classList.remove("open");
+  if (!sheetIsFilter && /^#[tc]=/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+}
+$("sheetClose").onclick = closeSheet; $("scrim").onclick = closeSheet;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+window.addEventListener("hashchange", route);
+async function route() {
+  const m = location.hash.match(/^#t=(.+)$/), c = location.hash.match(/^#c=(.+)$/);
+  if (m && DATA) { if (!renderDetail(decodeURIComponent(m[1]))) closeSheet(); }
+  else if (c) { await loadCongress(); if (!renderCongressDetail(decodeURIComponent(c[1]))) closeSheet(); }
+  else if (!sheetIsFilter) closeSheet();
+}
+
+// ------------------------------------------------------------ backtest
+function barChart(items, fmt) {
+  const w = 320, h = 150, pad = 26, bw = (w - pad) / items.length;
+  const max = Math.max(0.01, ...items.map((i) => Math.abs(i.v || 0)));
+  const hasNeg = items.some((i) => (i.v || 0) < 0);
+  const zero = hasNeg ? h / 2 : h - 22;
+  const scale = (hasNeg ? h / 2 - 20 : h - 44) / max;
+  const bars = items.map((it, k) => {
+    const v = it.v || 0, bh = Math.abs(v) * scale, x = pad + k * bw + bw * 0.18, y = v >= 0 ? zero - bh : zero;
+    return `<rect x="${x}" y="${y}" width="${bw * 0.64}" height="${Math.max(1, bh)}" rx="4" fill="${it.c || "var(--accent)"}"/>
+      <text x="${x + bw * 0.32}" y="${v >= 0 ? y - 5 : y + bh + 13}" text-anchor="middle" style="fill:var(--text);font-weight:650">${it.v == null ? "—" : fmt(v)}</text>
+      <text x="${x + bw * 0.32}" y="${h - 4}" text-anchor="middle">${esc(it.l)}</text>`;
+  }).join("");
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="100%" role="img"><line x1="${pad}" x2="${w}" y1="${zero}" y2="${zero}" stroke="var(--line)"/>${bars}</svg>`;
+}
+async function renderBacktest() {
+  $("view").innerHTML = `<div class="empty">Loading backtest…</div>`;
+  await loadBacktest();
+  if (TAB !== "backtest") return;
+  if (!BT) {
+    $("view").innerHTML = `<div class="sec" style="margin-top:16px"><h3>Backtest</h3>
+      <p style="margin:0 0 8px">No backtest results yet.</p>
+      <p style="font-size:14px;color:var(--muted);margin:0">The backtest checks whether higher-scored C-suite buys actually beat the S&amp;P 500 afterwards, using every Form 4 since ${2019}.
+      It runs automatically on the 1st of each month (or run it any time from GitHub → Actions → “Insider Radar” → Run workflow → backtest).</p></div>`;
+    return;
+  }
+  const m = BT.meta, L = m.labels, s = BT.by_signal, o = BT.overall;
+  const sigs = ["Very strong", "Strong", "Notable", "Minor"];
+  const vs = s["Very strong"]["6m"];
+  const horizonRows = sigs.map((k) => `<tr><td><span style="color:${SIG[k]};font-weight:650">${k}</span></td>${m.horizons.map((h) =>
+    `<td class="${(s[k][h].avg || 0) >= 0 ? "pos" : "neg"}">${s[k][h].n ? pct(s[k][h].avg, 1, true) : "—"}</td>`).join("")}<td>${s[k]["6m"].n || 0}</td></tr>`).join("");
+  const facRows = Object.keys(m.weights).map((k) => { const f = BT.factors[k] || {}; const sw = BT.suggested_weights ? BT.suggested_weights[k] : null;
+    return `<tr><td>${esc(L[k] || k)}</td><td class="${f.spread == null ? "" : f.spread >= 0 ? "pos" : "neg"}">${f.spread == null ? "not tested" : pct(f.spread, 1, true)}</td><td>${m.weights[k]}</td><td>${sw == null ? "—" : sw}</td></tr>`; }).join("");
+  $("view").innerHTML = `
+    <div class="sec" style="margin-top:16px"><h3>Does the score work?</h3>
+      <div class="big" style="color:${(vs.avg || 0) >= 0 ? "var(--pos)" : "var(--neg)"}">${vs.n ? pct(vs.avg, 1, true) : "—"}</div>
+      <div style="font-size:14px">average 6-month return <b>vs. the S&amp;P 500</b> for <b>Very strong</b> buys (${vs.n || 0} trades, ${vs.n ? pct(vs.hit) : "—"} beat the index).
+      All C-suite buys: ${pct(o["6m"].avg, 1, true)} (${o["6m"].n} trades).</div></div>
+    <div class="sec"><h3>6-month return vs. S&amp;P 500 by signal</h3>
+      ${barChart(sigs.map((k) => ({ l: k, v: s[k]["6m"].n ? s[k]["6m"].avg : null, c: SIG[k] })), (v) => pct(v, 1, true))}</div>
+    <div class="sec"><h3>By score group (lowest → highest fifth)</h3>
+      ${barChart(BT.by_quintile_6m.map((q) => ({ l: `${Math.round(q.score_from)}–${Math.round(q.score_to)}`, v: q.avg })), (v) => pct(v, 1, true))}</div>
+    <div class="sec"><h3>Return vs. S&amp;P 500 by horizon</h3>
+      <table class="t"><tr><th>Signal</th>${m.horizons.map((h) => `<th>${h}</th>`).join("")}<th>Trades</th></tr>${horizonRows}</table></div>
+    <div class="sec"><h3>Which factors mattered</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Top-third minus bottom-third 6-month return for each factor. Suggested weights are proportional to the positive spreads.</p>
+      <table class="t"><tr><th>Factor</th><th>Spread</th><th>Now</th><th>Suggested</th></tr>${facRows}</table>
+      <p style="font-size:13px;margin:10px 0 0">To use new weights, edit <code>config/weights.json</code> in your GitHub repository. The next daily scan picks them up.</p></div>
+    <div class="sec"><h3>Fine print</h3><ul class="why" style="font-size:13px">
+      <li>${num(m.trades_scored)} C-suite open-market buys ≥ ${money(m.min_value)} filed since ${m.start_year}, across ${num(m.tickers_tested)} stocks. Returns start the trading day after the filing became public.</li>
+      <li>${num(m.dropped_no_prices)} trades had no price data (often delisted companies), so results lean toward survivors and may look better than reality.</li>
+      <li>CEO pay, earnings timing and 10-Q red flags aren't in the backtest (they need extra documents per company).</li>
+      <li>Past results don't guarantee future returns. Ran ${new Date(m.run_at).toLocaleDateString()}.</li></ul></div>`;
+}
+
+// ------------------------------------------------------------ about
+function renderAbout() {
+  const m = DATA && DATA.meta, W = (m && m.weights) || {}, L = (m && m.labels) || {};
+  const total = Object.values(W).reduce((a, b) => a + b, 0);
+  const standalone = window.navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  $("view").innerHTML = `
+    ${LOCAL ? `<div class="sec" style="margin-top:16px"><h3>Scan on this computer</h3>
+      <label style="font-size:13px;color:var(--muted)">Contact e-mail (the SEC requires one)</label>
+      <div style="display:flex;gap:8px;margin:6px 0 10px"><input class="field" id="email" type="email" value="${esc(LOCAL.email || "")}" placeholder="you@example.com"><button class="btn" id="saveEmail">Save</button></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="pill" id="scanDays">${[3, 7, 14, 30].map((d) => `<option value="${d}"${d === 7 ? " selected" : ""}>${d} days</option>`).join("")}</select>
+        <button class="btn primary" id="scanBtn" style="flex:1">Scan now</button></div>
+      <div id="scanStatus" style="font-size:13px;color:var(--muted);margin-top:8px"></div><div class="progress" id="prog" hidden><i></i></div></div>` : ""}
+    ${!standalone && !LOCAL ? `<div class="sec" style="margin-top:16px"><h3>Add to your iPhone home screen</h3><ol class="steps">
+      <li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li>
+      <li>Scroll and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>Insider Radar</b> from your home screen — it runs full-screen like an app.</li></ol></div>` : ""}
+    <div class="sec" ${LOCAL || !standalone ? "" : 'style="margin-top:16px"'}><h3>What gets included</h3><ul class="why">
+      <li><b>Open-market purchases</b> (Form 4 code P) — executives buying with their own money. Grants, option exercises, gifts and sales are excluded.</li>
+      <li><b>C-suite only</b>: CEO, CFO, COO, President, CTO and other “Chief … Officers” (Chair optional).</li>
+      <li>Amended filings (4/A) replace the original. Several lots in one filing count as one buy.</li></ul></div>
+    <div class="sec"><h3>Congress trades</h3><ul class="why">
+      <li>Stock and stock-option trades that members of Congress report under the STOCK Act (Periodic Transaction Reports), disclosed in the last 90 days.</li>
+      <li>House reports come from the House Clerk; Senate reports from the Senate's electronic disclosure site. Paper filings that can't be read by a computer are skipped.</li>
+      <li>Each trade is tagged — never scored — with leadership roles, committee chairs, committees that oversee the company's industry, late disclosures (over 45 days) and whether C-suite insiders are buying the same stock.</li></ul></div>
+    <div class="sec"><h3>How the score works</h3>
+      <p style="font-size:14px;margin:0 0 8px">Each factor earns points; the score is points earned ÷ points available × 100 (factors with no data are left out).</p>
+      <table class="t"><tr><th>Factor</th><th>Weight</th></tr>${Object.keys(W).map((k) => `<tr><td>${esc(L[k] || k)}</td><td>${W[k]}</td></tr>`).join("")}</table>
+      <ul class="why" style="font-size:13px;margin-top:10px"><li>Pre-scheduled 10b5-1 plan buys ×0.75; executives in the job under 6 months ×0.85.</li>
+      <li><b>70+</b> Very strong · <b>50+</b> Strong · <b>30+</b> Notable · below 30 Minor.</li>
+      <li>“One-off vs routine” follows Cohen, Malloy &amp; Pomorski (2012): insiders who trade in the same month every year carry little information.</li></ul></div>
+    ${m ? `<div class="sec"><h3>Data</h3>${kv([
+      ["Last scan", new Date(m.scanned_at).toLocaleString()], ["Window", `${sdate(m.from)} – ${sdate(m.to)}`],
+      ["Form 4s checked", num(m.filings_checked)], ["Insider history through", m.history_db_through ? sdate(m.history_db_through) + " " + m.history_db_through.slice(0, 4) : "—"],
+    ])}<p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">Sources: SEC EDGAR (Form 4, company facts, 10-Q/10-K, proxy statements, quarterly insider data sets) and Yahoo Finance prices.</p></div>` : ""}
+    <p class="note">For research and education. Not investment advice.</p>`;
+  if (LOCAL) wireLocal();
+}
+function wireLocal() {
+  $("saveEmail").onclick = async () => {
+    const r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("email").value }) });
+    const d = await r.json(); $("scanStatus").textContent = d.error || "Saved."; if (!d.error) LOCAL.email = $("email").value;
+  };
+  $("scanBtn").onclick = async () => {
+    if (!LOCAL.email) { $("scanStatus").textContent = "Save your e-mail first."; return; }
+    const r = await fetch("api/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days: +$("scanDays").value }) });
+    const d = await r.json(); if (d.error) { $("scanStatus").textContent = d.error; return; }
+    pollLocal();
+  };
+  if (LOCAL.job && LOCAL.job.running) pollLocal();
+}
+let polling = false;
+async function pollLocal() {
+  if (polling) return; polling = true;
+  while (true) {
+    const s = await fetch("api/state").then((r) => r.json()).catch(() => null);
+    if (!s) break;
+    LOCAL = s; const j = s.job;
+    if ($("scanBtn")) {
+      $("scanBtn").disabled = j.running; $("prog").hidden = !j.running;
+      $("prog").firstElementChild.style.width = (j.total ? 100 * j.done / j.total : 0) + "%";
+      const eta = j.stage.startsWith("Downloading") && j.total - j.done > 200 ? ` · about ${Math.ceil((j.total - j.done) / 8 / 60)} min left` : "";
+      $("scanStatus").textContent = j.running ? `${j.stage}${j.total > 1 ? ` — ${j.done.toLocaleString()} / ${j.total.toLocaleString()}` : ""}${eta}` : (j.error || "Scan finished.");
+    }
+    if (!j.running) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  polling = false; await loadData();
+}
+
+
+// ------------------------------------------------------------ congress
+const DEFAULT_FC = { chamber: "All", party: "All", action: "All", minAmount: 15001, withinDays: 90, keyOnly: false,
+  oversightOnly: false, hideFamily: false, insiderOnly: false, q: "", sort: "newest" };
+let CONG = null, CONG_LOADED = false, FC = load("ibr-cfilters", DEFAULT_FC);
+async function loadCongress() {
+  if (CONG_LOADED) return;
+  CONG_LOADED = true;
+  try { CONG = await fetchJSON("data/congress.json?t=" + Date.now()); } catch (e) { CONG = null; }
+}
+const shortAmt = (lo, hi) => { const f = (v) => v >= 1e6 ? "$" + (v / 1e6).toFixed(v % 1e6 ? 1 : 0).replace(/\.0$/, "") + "M" : "$" + Math.round(v / 1e3) + "K";
+  if (lo == null) return "—"; if (hi == null) return "Over " + f(lo - 1); return f(lo - 1 >= 1000 ? lo - 1 : lo) + "–" + f(hi); };
+const actCls = (t) => t === "Buy" ? "buy" : t.startsWith("Sell") ? "sell" : "other";
+const seat = (r) => r.chamber === "Senate" ? r.state : `${r.state}${r.district != null ? "-" + r.district : ""}`;
+const honor = (r) => r.chamber === "Senate" ? "Sen." : "Rep.";
+function ctags(r, full = false) {
+  const t = [];
+  if (r.leadership && r.leadership.length) t.push([r.leadership[0], "good"]);
+  if (r.chairs && r.chairs.length) t.push([r.chairs.length > 1 ? `Chair/ranking ×${r.chairs.length}` : "Committee chair/ranking", "good"]);
+  if (r.oversight && r.oversight.length) t.push(["Oversight overlap", "warn"]);
+  if (r.insider_buying) t.push(["C-suite buying too", "good"]);
+  if (r.owner && r.owner !== "Self") t.push([r.owner, ""]);
+  if (r.asset_type === "Stock option") t.push(["Option", ""]);
+  if (r.late) t.push([`Disclosed late (${r.delay_days}d)`, "warn"]);
+  return (full ? t : t.slice(0, 4)).map(([x, c]) => `<span class="tag ${c}">${esc(x)}</span>`).join("");
+}
+function cfiltered() {
+  if (!CONG) return [];
+  const q = FC.q.trim().toLowerCase();
+  const list = CONG.trades.filter((r) => (FC.chamber === "All" || r.chamber === FC.chamber) && (FC.party === "All" || r.party === FC.party) &&
+    (FC.action === "All" || (FC.action === "Buys" ? r.type === "Buy" : r.type.startsWith("Sell"))) &&
+    (r.amount_low || 0) >= FC.minAmount && (!r.filed || daysAgo(r.filed) < FC.withinDays) && (!FC.keyOnly || r.key_person) &&
+    (!FC.oversightOnly || (r.oversight && r.oversight.length)) && (!FC.hideFamily || r.owner === "Self" || r.owner === "Joint") &&
+    (!FC.insiderOnly || r.insider_buying) &&
+    (!q || [r.ticker, r.company, r.member, r.state].some((s) => (s || "").toLowerCase().includes(q))));
+  const key = { newest: (r) => -(new Date(r.filed || 0)) , largest: (r) => -(r.amount_low || 0), traded: (r) => -(new Date(r.trade_date || 0)) }[FC.sort];
+  return list.sort((a, b) => key(a) - key(b));
+}
+function cActiveCount() {
+  let n = 0; const d = DEFAULT_FC;
+  ["chamber", "party", "action", "minAmount", "withinDays", "keyOnly", "oversightOnly", "hideFamily", "insiderOnly"].forEach((k) => { if (FC[k] !== d[k]) n++; });
+  return n;
+}
+async function renderCongress() {
+  if (!CONG_LOADED) $("view").innerHTML = `<div class="empty">Loading Congress trades…</div>`;
+  await loadCongress();
+  if (TAB !== "congress") return;
+  if (!CONG) {
+    $("view").innerHTML = `<div class="sec" style="margin-top:16px"><h3>Congress trades</h3><p style="margin:0;font-size:14px">No data yet. The Congress feed is collected with each daily scan${LOCAL ? " (press Scan now on the About tab)" : ""}.</p></div>`;
+    return;
+  }
+  renderCongressHeader();
+  const list = cfiltered(), n = cActiveCount();
+  const failed = Object.entries(CONG.meta.sources || {}).filter(([k, v]) => ["House", "Senate"].includes(k) && !v.ok);
+  const cards = list.map((r) => `<button class="card" data-cid="${esc(r.id)}">
+      <div class="pbadge p-${esc(r.party || "I")}" aria-label="${esc(r.party || "Unknown party")}">${esc(r.party || "?")}</div>
+      <div class="cmain">
+        <div class="l1"><span class="tk">${esc(r.ticker)}</span><span class="co">${esc(tcase(r.company))}</span></div>
+        <div class="l2">${honor(r)} ${esc(r.member)} · ${esc(seat(r))}</div>
+        <div class="tags">${ctags(r)}</div>
+      </div>
+      <div class="cright"><div class="act ${actCls(r.type)}">${esc(r.type)}</div><div class="v" style="font-size:13.5px">${shortAmt(r.amount_low, r.amount_high)}</div>
+        <div class="d">${sdate(r.trade_date)}</div></div>
+    </button>`).join("");
+  const buys = list.filter((r) => r.type === "Buy").length;
+  $("view").innerHTML = `
+    <div class="controls">
+      <input class="search" id="cq" type="search" placeholder="Ticker, company, member or state" value="${esc(FC.q)}" autocomplete="off">
+      <button class="pill" id="openCF">Filters${n ? ` <span class="badge">${n}</span>` : ""}</button>
+      <select class="pill" id="csort" aria-label="Sort">
+        <option value="newest"${FC.sort === "newest" ? " selected" : ""}>New</option>
+        <option value="largest"${FC.sort === "largest" ? " selected" : ""}>$</option>
+        <option value="traded"${FC.sort === "traded" ? " selected" : ""}>Traded</option>
+      </select>
+    </div>
+    <div class="summary">
+      <div class="stat"><b>${list.length}</b><span>Trades</span></div>
+      <div class="stat"><b style="color:var(--vs)">${buys}</b><span>Buys</span></div>
+      <div class="stat"><b style="color:var(--neg)">${list.length - buys}</b><span>Sells & other</span></div>
+      <div class="stat"><b>${new Set(list.map((r) => r.member)).size}</b><span>Members</span></div>
+    </div>
+    ${failed.length ? `<div class="banner">${failed.map(([k]) => k).join(" and ")} data couldn't be refreshed on the last run — showing the last saved copy.</div>` : ""}
+    <div class="list">${list.length ? cards : `<div class="empty">No trades match your filters.<br><button class="btn" style="margin-top:12px" id="resetCF">Reset filters</button></div>`}</div>
+    <p class="note">Stock and stock-option trades that members of Congress disclosed in the last ${CONG.meta.days} days (STOCK Act reports). Amounts are the reported ranges. Not a ranking, and not investment advice.</p>`;
+  $("cq").oninput = (e) => { FC.q = e.target.value; save("ibr-cfilters", FC); const pos = e.target.selectionStart; renderCongress().then(() => { const q = $("cq"); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }); };
+  $("csort").onchange = (e) => { FC.sort = e.target.value; save("ibr-cfilters", FC); renderCongress(); };
+  $("openCF").onclick = openCongressFilters;
+  if ($("resetCF")) $("resetCF").onclick = () => { FC = { ...DEFAULT_FC }; save("ibr-cfilters", FC); renderCongress(); };
+  document.querySelectorAll("[data-cid]").forEach((c) => c.onclick = () => { location.hash = "c=" + c.dataset.cid; });
+}
+function openCongressFilters() {
+  $("sheetTitle").textContent = "Congress filters";
+  const chips = (key, opts, fmt) => `<div class="chips">${opts.map((o) => `<button class="chip" data-ck="${key}" data-v="${o}" aria-pressed="${FC[key] === o}">${fmt(o)}</button>`).join("")}</div>`;
+  $("sheetBody").innerHTML = `
+    <div class="fgroup"><div>Chamber</div>${chips("chamber", ["All", "House", "Senate"], (v) => v)}</div>
+    <div class="fgroup"><div>Party</div>${chips("party", ["All", "D", "R", "I"], (v) => ({ All: "All", D: "Democrat", R: "Republican", I: "Independent" })[v])}</div>
+    <div class="fgroup"><div>Trade</div>${chips("action", ["All", "Buys", "Sells"], (v) => v)}</div>
+    <div class="fgroup"><div>Minimum reported amount</div>${chips("minAmount", [0, 15001, 50001, 100001, 250001, 1000001], (v) => v ? "$" + (v - 1 >= 1e6 ? (v - 1) / 1e6 + "M" : (v - 1) / 1e3 + "K") + "+" : "Any")}</div>
+    <div class="fgroup"><div>Disclosed within</div>${chips("withinDays", [7, 30, 60, 90], (v) => v + " days")}</div>
+    <div class="fgroup">
+      ${[["keyOnly", "Only leaders and committee chairs / ranking members"], ["oversightOnly", "Only where their committee oversees the company's industry"],
+         ["insiderOnly", "Only stocks C-suite insiders are also buying"], ["hideFamily", "Hide spouse and dependent-child trades"]]
+        .map(([k, l]) => `<label class="toggle">${l}<input type="checkbox" data-ct="${k}" ${FC[k] ? "checked" : ""}></label>`).join("")}
+    </div>
+    <div class="btnrow"><button class="btn" id="cfReset">Reset</button><button class="btn primary" id="cfDone" style="flex:1">Show results</button></div>`;
+  const body = $("sheetBody");
+  const changed = () => { save("ibr-cfilters", FC); renderCongress(); $("cfDone").textContent = `Show ${cfiltered().length} results`; };
+  body.querySelectorAll("[data-ck]").forEach((b) => b.onclick = () => {
+    const k = b.dataset.ck, v = b.dataset.v; FC[k] = typeof DEFAULT_FC[k] === "number" ? +v : v;
+    body.querySelectorAll(`[data-ck="${k}"]`).forEach((x) => x.setAttribute("aria-pressed", x === b)); changed(); });
+  body.querySelectorAll("[data-ct]").forEach((i) => i.onchange = () => { FC[i.dataset.ct] = i.checked; changed(); });
+  $("cfReset").onclick = () => { FC = { ...DEFAULT_FC, q: FC.q, sort: FC.sort }; changed(); openCongressFilters(); };
+  $("cfDone").onclick = closeSheet;
+  $("cfDone").textContent = `Show ${cfiltered().length} results`;
+  openSheet(true);
+}
+function renderCongressDetail(id) {
+  const r = CONG && CONG.trades.find((x) => x.id === id);
+  if (!r) return false;
+  const ib = r.insider_buying;
+  $("sheetTitle").textContent = r.ticker;
+  $("sheetBody").innerHTML = `
+    <div class="hero"><div class="pbadge p-${esc(r.party || "I")}">${esc(r.party || "?")}</div>
+      <div><div style="font-weight:700;font-size:17px">${esc(r.member)}</div>
+      <div style="color:var(--muted);font-size:14px">${r.chamber === "Senate" ? "Senator" : "Representative"} · ${esc(r.state)}${r.district != null && r.chamber === "House" ? "-" + r.district : ""}${r.party ? " · " + ({ D: "Democrat", R: "Republican", I: "Independent" })[r.party] : ""}</div>
+      <div style="margin-top:4px"><span class="act ${actCls(r.type)}">${esc(r.type)}</span> <b>${esc(r.ticker)}</b> · ${esc(r.amount)}</div></div></div>
+    <div class="tags" style="margin:8px 0 4px">${ctags(r, true)}</div>
+    <div class="sec"><h3>The trade</h3>${kv([
+      ["Company", esc(tcase(r.company))], r.industry ? ["Industry", esc(r.industry)] : null,
+      ["Asset as reported", esc(r.asset || "—")], ["Asset type", esc(r.asset_type)], ["Transaction", esc(r.type)],
+      ["Owner", esc(r.owner)], ["Amount (reported range)", esc(r.amount)],
+      ["Traded", r.trade_date ? sdate(r.trade_date) + " " + r.trade_date.slice(0, 4) : "—"],
+      ["Disclosed", r.filed ? sdate(r.filed) + " " + r.filed.slice(0, 4) : "—"],
+      r.delay_days != null ? ["Disclosure delay", `${r.delay_days} days${r.late ? ' <span class="tag warn">over the 45-day limit</span>' : ""}`] : null,
+      r.comment ? ["Comment", esc(r.comment)] : null,
+    ])}</div>
+    ${r.oversight && r.oversight.length ? `<div class="sec"><h3>Committee oversight overlap</h3><p style="margin:0;font-size:14px">${esc(r.member)} sits on ${esc(r.oversight.join(" and "))}, which oversees the ${esc(r.oversight_industry)} industry this company is in.</p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">A rough keyword match between committee names and the company's SEC industry code — context, not a finding of any conflict.</p></div>` : ""}
+    ${ib ? `<div class="sec"><h3>C-suite insiders are also buying</h3><p style="margin:0 0 8px;font-size:14px">The ${esc(ib.role)} bought ${money(ib.value)} of ${esc(r.ticker)} recently (Insider Radar score ${Math.round(ib.score)}).</p><a class="btn" href="#t=${esc(ib.id)}">Open that insider buy</a></div>` : ""}
+    <div class="sec"><h3>Member</h3>${kv([
+      ["Chamber", r.chamber], ["State", esc(r.state) + (r.district != null && r.chamber === "House" ? ` · district ${r.district}` : "")],
+      r.leadership.length ? ["Leadership", esc(r.leadership.join(", "))] : null,
+      r.chairs.length ? ["Chair / ranking member", esc(r.chairs.join("; "))] : null,
+    ])}${r.committees.length ? `<div style="font-size:13px;margin-top:10px;font-weight:600">Committees</div><ul class="why" style="margin-top:4px;font-size:13.5px">${r.committees.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
+    ${!r.matched ? `<p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">Couldn't match this filer to the current member list, so party and committees are missing.</p>` : ""}</div>
+    <div class="btnrow"><a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">Original disclosure ↗</a>
+      <a class="btn" href="https://finance.yahoo.com/quote/${encodeURIComponent(r.ticker)}" target="_blank" rel="noopener">Quote ↗</a></div>
+    <p class="note">From the member's STOCK Act Periodic Transaction Report. Amounts are ranges as filed. Not investment advice.</p>`;
+  openSheet();
+  return true;
+}
+
+// ------------------------------------------------------------ tabs
+function renderCongressHeader() {
+  const m = CONG && CONG.meta;
+  if (!m) return;
+  const t = new Date(m.scanned_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  $("upd").textContent = `${OFFLINE ? "Offline · " : ""}Updated ${t} · disclosed in last ${m.days} days`;
+}
+function render() { renderHeader(); if (TAB === "trades") renderTrades(); else if (TAB === "congress") renderCongress(); else if (TAB === "backtest") renderBacktest(); else renderAbout(); }
+document.querySelectorAll(".tab").forEach((t) => t.onclick = () => {
+  TAB = t.dataset.tab; document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
+  save("ibr-tab", { tab: TAB }); window.scrollTo(0, 0); render(); });
+$("refresh").onclick = () => { BT_LOADED = false; CONG_LOADED = false; loadData(); };
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && DATA && DATA.meta &&
+  Date.now() - new Date(DATA.meta.scanned_at) > 3 * 3600e3) loadData(); });
+
+(async function init() {
+  const saved = load("ibr-tab", { tab: "trades" }).tab;
+  if (["trades", "congress", "backtest", "about"].includes(saved)) TAB = saved;
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === TAB));
+  try { const r = await fetch("api/state"); if (r.ok) LOCAL = await r.json(); } catch (e) {}
+  await loadData();
+  route();
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

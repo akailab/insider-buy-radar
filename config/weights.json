@@ -1,0 +1,20 @@
+{
+  "_help": "Relative importance of each factor in the conviction score. Set a weight to 0 to ignore a factor. The Backtest tab suggests weights based on what actually predicted returns.",
+  "weights": {
+    "size": 20,
+    "holdings": 15,
+    "mcap": 15,
+    "history": 10,
+    "routine": 10,
+    "pay": 10,
+    "cluster": 8,
+    "net": 7,
+    "role": 5,
+    "price": 5,
+    "volume": 5,
+    "timing": 5,
+    "track": 5
+  },
+  "plan_multiplier": 0.75,
+  "new_exec_multiplier": 0.85
+}
