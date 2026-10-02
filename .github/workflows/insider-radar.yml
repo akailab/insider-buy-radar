@@ -37,6 +37,9 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       ALERT_MIN_SCORE: ${{ vars.ALERT_MIN_SCORE }}
+      CONGRESS_ALERTS: ${{ vars.CONGRESS_ALERTS }}
+      CONGRESS_DROP_PCT: ${{ vars.CONGRESS_DROP_PCT }}
+      CONGRESS_ALERT_MIN_AMOUNT: ${{ vars.CONGRESS_ALERT_MIN_AMOUNT }}
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
@@ -90,7 +93,7 @@ jobs:
           git config user.name "insider-radar-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Only small files are committed; the full results are published straight to GitHub Pages
-          for f in docs/data/status.json docs/data/alerted.json docs/data/backtest.json; do
+          for f in docs/data/status.json docs/data/alerted.json docs/data/congress_alerted.json docs/data/backtest.json; do
             if [ -f "$f" ]; then git add -f "$f"; fi
           done
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
