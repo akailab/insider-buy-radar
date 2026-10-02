@@ -92,6 +92,7 @@ select.pill { appearance: none; -webkit-appearance: none; padding-right: 14px; }
 .tag { font-size: 10.5px; font-weight: 650; letter-spacing: .02em; border-radius: 6px; padding: 2px 6px; background: var(--panel2); color: var(--muted); }
 .tag.good { background: color-mix(in srgb, var(--vs) 14%, transparent); color: var(--vs); }
 .tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.bad { background: color-mix(in srgb, var(--neg) 13%, transparent); color: var(--neg); }
 .cright { text-align: right; flex: none; }
 .cright .v { font-weight: 700; font-variant-numeric: tabular-nums; }
 .cright .d { font-size: 12px; color: var(--muted); }
@@ -227,7 +228,7 @@ const daysAgo = (d) => Math.floor((Date.now() - new Date(d + "T12:00:00")) / 864
 const ring = (score, sig, cls = "") => `<div class="ring ${cls}" style="--p:${Math.max(3, score)};--c:${SIG[sig]}"><span>${Math.round(score)}</span></div>`;
 
 // ------------------------------------------------------------ data
-const CACHE_NAME = "insider-radar-v4";
+const CACHE_NAME = "insider-radar-v5";
 async function fetchJSON(url) {
   const u = new URL(url, location.href), key = u.origin + u.pathname;
   try {
@@ -551,7 +552,8 @@ function renderAbout() {
     <div class="sec"><h3>Congress trades</h3><ul class="why">
       <li>Stock and stock-option trades that members of Congress report under the STOCK Act (Periodic Transaction Reports), disclosed in the last 90 days.</li>
       <li>House reports come from the House Clerk; Senate reports from the Senate's electronic disclosure site. Paper filings that can't be read by a computer are skipped.</li>
-      <li>Each trade is tagged — never scored — with leadership roles, committee chairs, committees that oversee the company's industry, late disclosures (over 45 days) and whether C-suite insiders are buying the same stock.</li></ul></div>
+      <li>Each trade is tagged — never scored — with leadership roles, committee chairs, committees that oversee the company's industry, late disclosures (over 45 days) and whether C-suite insiders are buying the same stock.</li>
+      <li><b>Below buy price:</b> for stock purchases, the app compares today's price with the closing price on the trade date (members report only a range, not the price paid). When a stock falls below that estimated purchase price you get one e-mail for that trade.</li></ul></div>
     <div class="sec"><h3>How the score works</h3>
       <p style="font-size:14px;margin:0 0 8px">Each factor earns points; the score is points earned ÷ points available × 100 (factors with no data are left out).</p>
       <table class="t"><tr><th>Factor</th><th>Weight</th></tr>${Object.keys(W).map((k) => `<tr><td>${esc(L[k] || k)}</td><td>${W[k]}</td></tr>`).join("")}</table>
@@ -600,7 +602,7 @@ async function pollLocal() {
 
 // ------------------------------------------------------------ congress
 const DEFAULT_FC = { chamber: "All", party: "All", action: "All", minAmount: 15001, withinDays: 90, keyOnly: false,
-  oversightOnly: false, hideFamily: false, insiderOnly: false, q: "", sort: "newest" };
+  oversightOnly: false, hideFamily: false, insiderOnly: false, belowOnly: false, q: "", sort: "newest" };
 let CONG = null, CONG_LOADED = false, FC = load("ibr-cfilters", DEFAULT_FC);
 async function loadCongress() {
   if (CONG_LOADED) return;
@@ -612,8 +614,11 @@ const shortAmt = (lo, hi) => { const f = (v) => v >= 1e6 ? "$" + (v / 1e6).toFix
 const actCls = (t) => t === "Buy" ? "buy" : t.startsWith("Sell") ? "sell" : "other";
 const seat = (r) => r.chamber === "Senate" ? r.state : `${r.state}${r.district != null ? "-" + r.district : ""}`;
 const honor = (r) => r.chamber === "Senate" ? "Sen." : "Rep.";
+const chg = (r) => (r.price_change * 100).toFixed(Math.abs(r.price_change) < 0.1 ? 1 : 0);
 function ctags(r, full = false) {
   const t = [];
+  if (r.below_buy) t.push([`▼ ${chg(r).replace("-", "")}% below buy price`, "bad"]);
+  else if (full && r.price_change != null) t.push([`▲ ${chg(r)}% since buy`, "good"]);
   if (r.leadership && r.leadership.length) t.push([r.leadership[0], "good"]);
   if (r.chairs && r.chairs.length) t.push([r.chairs.length > 1 ? `Chair/ranking ×${r.chairs.length}` : "Committee chair/ranking", "good"]);
   if (r.oversight && r.oversight.length) t.push(["Oversight overlap", "warn"]);
@@ -630,14 +635,14 @@ function cfiltered() {
     (FC.action === "All" || (FC.action === "Buys" ? r.type === "Buy" : r.type.startsWith("Sell"))) &&
     (r.amount_low || 0) >= FC.minAmount && (!r.filed || daysAgo(r.filed) < FC.withinDays) && (!FC.keyOnly || r.key_person) &&
     (!FC.oversightOnly || (r.oversight && r.oversight.length)) && (!FC.hideFamily || r.owner === "Self" || r.owner === "Joint") &&
-    (!FC.insiderOnly || r.insider_buying) &&
+    (!FC.insiderOnly || r.insider_buying) && (!FC.belowOnly || r.below_buy) &&
     (!q || [r.ticker, r.company, r.member, r.state].some((s) => (s || "").toLowerCase().includes(q))));
   const key = { newest: (r) => -(new Date(r.filed || 0)) , largest: (r) => -(r.amount_low || 0), traded: (r) => -(new Date(r.trade_date || 0)) }[FC.sort];
   return list.sort((a, b) => key(a) - key(b));
 }
 function cActiveCount() {
   let n = 0; const d = DEFAULT_FC;
-  ["chamber", "party", "action", "minAmount", "withinDays", "keyOnly", "oversightOnly", "hideFamily", "insiderOnly"].forEach((k) => { if (FC[k] !== d[k]) n++; });
+  ["chamber", "party", "action", "minAmount", "withinDays", "keyOnly", "oversightOnly", "hideFamily", "insiderOnly", "belowOnly"].forEach((k) => { if (FC[k] !== d[k]) n++; });
   return n;
 }
 async function renderCongress() {
@@ -698,7 +703,8 @@ function openCongressFilters() {
     <div class="fgroup"><div>Disclosed within</div>${chips("withinDays", [7, 30, 60, 90], (v) => v + " days")}</div>
     <div class="fgroup">
       ${[["keyOnly", "Only leaders and committee chairs / ranking members"], ["oversightOnly", "Only where their committee oversees the company's industry"],
-         ["insiderOnly", "Only stocks C-suite insiders are also buying"], ["hideFamily", "Hide spouse and dependent-child trades"]]
+         ["insiderOnly", "Only stocks C-suite insiders are also buying"], ["belowOnly", "Only buys now trading below the member's purchase price"],
+         ["hideFamily", "Hide spouse and dependent-child trades"]]
         .map(([k, l]) => `<label class="toggle">${l}<input type="checkbox" data-ct="${k}" ${FC[k] ? "checked" : ""}></label>`).join("")}
     </div>
     <div class="btnrow"><button class="btn" id="cfReset">Reset</button><button class="btn primary" id="cfDone" style="flex:1">Show results</button></div>`;
@@ -733,6 +739,11 @@ function renderCongressDetail(id) {
       r.delay_days != null ? ["Disclosure delay", `${r.delay_days} days${r.late ? ' <span class="tag warn">over the 45-day limit</span>' : ""}`] : null,
       r.comment ? ["Comment", esc(r.comment)] : null,
     ])}</div>
+    ${r.price_change != null ? `<div class="sec"><h3>Price since the purchase</h3>${kv([
+      ["Est. purchase price", "$" + r.buy_price.toFixed(2) + ` <span style="color:var(--muted);font-size:12.5px">close on ${sdate(r.trade_date)}</span>`],
+      ["Price now", "$" + r.price_now.toFixed(2) + (r.price_asof ? ` <span style="color:var(--muted);font-size:12.5px">${sdate(r.price_asof)}</span>` : "")],
+      ["Change", `<b class="${r.below_buy ? "neg" : "pos"}">${r.price_change >= 0 ? "+" : ""}${(r.price_change * 100).toFixed(1)}%</b>${r.below_buy ? " · below their purchase price" : ""}`],
+    ])}<p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">Members report only a dollar range, not the price paid, so the purchase price is estimated from the stock's closing price on the trade date.</p></div>` : ""}
     ${r.oversight && r.oversight.length ? `<div class="sec"><h3>Committee oversight overlap</h3><p style="margin:0;font-size:14px">${esc(r.member)} sits on ${esc(r.oversight.join(" and "))}, which oversees the ${esc(r.oversight_industry)} industry this company is in.</p>
       <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">A rough keyword match between committee names and the company's SEC industry code — context, not a finding of any conflict.</p></div>` : ""}
     ${ib ? `<div class="sec"><h3>C-suite insiders are also buying</h3><p style="margin:0 0 8px;font-size:14px">The ${esc(ib.role)} bought ${money(ib.value)} of ${esc(r.ticker)} recently (Insider Radar score ${Math.round(ib.score)}).</p><a class="btn" href="#t=${esc(ib.id)}">Open that insider buy</a></div>` : ""}

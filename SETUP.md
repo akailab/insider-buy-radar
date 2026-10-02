@@ -3,7 +3,7 @@
 This takes about **20 minutes, one time**. When you're done:
 
 * GitHub runs the scan **twice every weekday**, at about 7:15 AM and 6:45 PM New York time. It's free and your computer doesn't need to be on.
-* You get an **e-mail** whenever a new buy scores 70 or higher.
+* You get an **e-mail** whenever a new buy scores 70 or higher, and when a stock a member of Congress bought drops below their purchase price.
 * The app is on your **iPhone home screen** and always shows the latest scan.
 
 You need a free GitHub account, a Gmail account for sending alerts, and Safari on your iPhone.
@@ -56,7 +56,14 @@ In your repository, go to **Settings**, then **Secrets and variables**, then **A
 | `SMTP_PASSWORD` | The 16-letter app password from Step 4 |
 | `SEC_CONTACT_NAME` *(optional)* | Your name, e.g. `Shweta B`. The SEC asks automated tools to identify themselves as "Name email"; without it the app uses "Insider Radar Research" |
 
-**Optional:** to change the alert threshold, open the **Variables** tab on the same page and add `ALERT_MIN_SCORE` with a value such as `60`.
+**Optional settings:** open the **Variables** tab on the same page and click **New repository variable**:
+
+| Name | What it does |
+|---|---|
+| `ALERT_MIN_SCORE` | Insider-buy alert threshold, e.g. `60` (default 70) |
+| `CONGRESS_DROP_PCT` | Congress price-drop alert only when the stock is at least this % below the purchase price, e.g. `5` (default: any drop) |
+| `CONGRESS_ALERT_MIN_AMOUNT` | Smallest Congress trade to watch, e.g. `50001` (default `15001`, which skips $1K–$15K trades) |
+| `CONGRESS_ALERTS` | `off` turns the Congress price-drop e-mails off |
 
 ## Step 6: Turn on the website
 
@@ -84,7 +91,8 @@ In your repository, go to **Settings**, then **Secrets and variables**, then **A
 ## Everyday use
 
 * **Buys tab:** tap any buy to see why it scored what it did. Use **Filters** to change roles, minimum size, score or date range.
-* **Congress tab:** stock trades disclosed by members of Congress in the last 90 days, with filters for chamber, party, buy/sell, amount, leaders, committee oversight overlap and "C-suite buying too". It's a data feed only: no score and no alerts.
+* **Congress tab:** stock trades disclosed by members of Congress in the last 90 days, with filters for chamber, party, buy/sell, amount, leaders, committee oversight overlap, "C-suite buying too" and "below buy price". There's no score.
+* **Congress price-drop e-mails:** when a stock a member bought ($15,001+ purchases of stock) falls below the price on the day they bought it, you get one e-mail for that trade. Members report only a dollar range, not the price they paid, so the app uses that day's closing price as the purchase price. The first run after this feature is added may send one longer e-mail listing every recent purchase that's already below; after that you only hear about new ones.
 * **Backtest tab:** shows whether high scores actually beat the S&P 500 in the past, and which factors mattered most.
 * **Changing the scoring:** edit `config/weights.json` in GitHub by opening the file and clicking the pencil icon. The next scan uses the new weights.
 * **Run a scan right now:** go to **Actions**, then **Insider Radar**, then **Run workflow**.
@@ -94,7 +102,7 @@ In your repository, go to **Settings**, then **Secrets and variables**, then **A
 Already set up? You don't need to redo the steps above. Your secrets, Gmail password and website settings all stay. Three steps:
 
 1. **Upload the new files:** in your repository, click **Add file**, then **Upload files**. Drag in everything from the new unzipped folder and click **Commit changes**. Files with the same name are replaced.
-2. **Update the schedule file:** open `.github/workflows/insider-radar.yml` in your repository and click the **pencil** icon. Select all the text, delete it, paste in **all** of `setup/insider-radar.yml` from the new folder, and click **Commit changes**. This step matters for the Congress tab: the new schedule installs the PDF reader that House filings need.
+2. **Update the schedule file:** open `.github/workflows/insider-radar.yml` in your repository and click the **pencil** icon. Select all the text, delete it, paste in **all** of `setup/insider-radar.yml` from the new folder, and click **Commit changes**. This step matters: the schedule installs the PDF reader that House filings need, passes the optional Congress alert settings, and saves which Congress trades were already e-mailed (so you don't get repeats).
 3. **Run it once:** go to **Actions**, then **Insider Radar**, then **Run workflow** (leave it on **scan**). The Congress tab fills in when the run finishes. On your iPhone, open the app and tap the refresh arrow.
 
 **New app icon:** iPhones keep the icon an app had when you first added it. To get the new icon, press and hold Insider Radar on your home screen, tap **Remove App**, then **Delete from Home Screen**. Then add it again from Safari (Step 8). Your filters are kept.
@@ -109,7 +117,8 @@ Already set up? You don't need to redo the steps above. Your secrets, Gmail pass
   * *"Username and Password not accepted"*: `SMTP_USER` or `SMTP_PASSWORD` is wrong. Create a new app password (Step 4) and update the secret.
 * **"e-mail isn't configured" in the log:** one of the three e-mail secrets is missing.
 * **Congress tab says House or Senate "couldn't be refreshed":** that site was unreachable on the last run, so the app shows the last saved data. The Senate site sometimes blocks cloud servers. Running the desktop app from home usually works.
-* **No price data (no 52-week high or "since trade" numbers):** Yahoo Finance sometimes blocks requests from cloud servers. Everything else still works, and prices usually come back on a later run.
+* **No price data (no 52-week high, "since trade" numbers or Congress "below buy price"):** Yahoo Finance sometimes blocks requests from cloud servers. Everything else still works, and prices usually come back on a later run. Congress price-drop e-mails need prices, so they pause until then.
+* **Getting the same Congress e-mail again:** the schedule file is out of date (it must save `congress_alerted.json`). Redo Updating step 2.
 * **The website shows a 404:** check Step 6, and wait for the first run to finish with a green check.
 * **The schedule stopped:** GitHub pauses schedules in repositories with no activity for 60 days. The app saves a small status file after every run to prevent this. If it does happen, click **Enable workflow** in the Actions tab.
 

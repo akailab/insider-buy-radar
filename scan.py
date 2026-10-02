@@ -4,7 +4,8 @@
     SEC_CONTACT_EMAIL=you@example.com python3 scan.py --days 30 --alert
 
 Writes docs/data/latest.json (read by the iPhone/desktop app) and, with --alert, e-mails any
-new trade scoring at or above --min-score. Alert settings come from environment variables:
+new trade scoring at or above --min-score, plus any Congress purchase whose stock has fallen
+below the member's estimated purchase price (see congress_alerts). Alert settings come from environment variables:
 ALERT_EMAIL_TO, SMTP_USER, SMTP_PASSWORD (a Gmail app password), optional SMTP_HOST/SMTP_PORT.
 """
 from __future__ import annotations
@@ -49,7 +50,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--days", type=int, default=30, help="look-back window in calendar days (default 30)")
     ap.add_argument("--deep-min", type=float, default=50_000, help="check insider history for buys above this $ (default 50000)")
-    ap.add_argument("--alert", action="store_true", help="e-mail new trades at or above --min-score")
+    ap.add_argument("--alert", action="store_true", help="e-mail new trades at or above --min-score, and Congress buys now below their purchase price")
     ap.add_argument("--min-score", type=float, default=float(os.environ.get("ALERT_MIN_SCORE") or 70))
     ap.add_argument("--no-prices", action="store_true", help="skip Yahoo Finance price data")
     ap.add_argument("--out", default=str(DATA / "latest.json"))
@@ -97,18 +98,24 @@ def main() -> int:
                                       "filings_checked": result["meta"]["filings_checked"],
                                       "refresh_error": result["meta"].get("refresh_error")})
 
+    cres = None
     if not args.no_congress:
         try:
             prev = json.loads((client.cache_dir / "congress.json").read_text())
         except (OSError, ValueError):
             prev = None
         try:
-            cres = run_congress_scan(client, days=args.congress_days, insider_rows=rows, previous=prev, progress=progress)
+            cres = run_congress_scan(client, days=args.congress_days, insider_rows=rows, previous=prev, progress=progress,
+                                     use_prices=not args.no_prices)
             write_json(DATA / "congress.json", cres)
             write_json(client.cache_dir / "congress.json", cres)
             src = ", ".join(f"{k}: {'ok' if v.get('ok') else 'FAILED - ' + v.get('error', '')}" for k, v in cres["meta"]["sources"].items())
             print(f"Congress: {len(cres['trades'])} stock trades ({src})")
+            px = cres["meta"].get("prices") or {}
+            if px:
+                print(f"Congress prices: {px}")
         except Exception as e:  # never let this break the insider scan
+            cres = None
             print(f"Congress feed skipped: {e}")
 
     if args.alert:
@@ -130,7 +137,44 @@ def main() -> int:
             state["ids"] = (state.get("ids", []) + [r["id"] for r in new])[-3000:]
             state["updated"] = datetime.now().isoformat(timespec="seconds")
             write_json(state_path, state)
+        if cres and os.environ.get("CONGRESS_ALERTS", "on").strip().lower() not in ("off", "0", "no", "false"):
+            congress_alerts(cres["trades"], settings)
     return 0
+
+
+def _num(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
+def congress_alerts(trades: list[dict], settings: dict | None) -> None:
+    """E-mail Congress purchases whose stock now trades below the member's estimated purchase price.
+    Each trade is e-mailed once. Settings (optional GitHub variables):
+    CONGRESS_DROP_PCT - how far below, in % (default 0 = any amount below)
+    CONGRESS_ALERT_MIN_AMOUNT - smallest disclosed amount to watch (default 15001 = skip $1K-$15K trades)."""
+    drop = max(0.0, _num("CONGRESS_DROP_PCT", 0))
+    min_amt = _num("CONGRESS_ALERT_MIN_AMOUNT", 15001)
+    state_path = DATA / "congress_alerted.json"
+    try:
+        state = json.loads(state_path.read_text())
+    except (OSError, ValueError):
+        state = {"ids": []}
+    already = set(state.get("ids", []))
+    hits = [t for t in trades if t.get("below_buy") and t.get("price_change") is not None
+            and t["price_change"] <= -drop / 100 and (t.get("amount_low") or 0) >= min_amt and t["id"] not in already]
+    if not hits:
+        print("Congress: no new purchases below the buy price.")
+        return
+    if not settings:
+        print(f"Congress: {len(hits)} purchase(s) below the buy price, but e-mail isn't configured.")
+        return
+    alerts.send_congress(hits, app_url(), drop, settings)
+    print(f"Congress: e-mailed {len(hits)} purchase(s) now below the buy price to {settings['to']}")
+    state["ids"] = (state.get("ids", []) + [t["id"] for t in hits])[-5000:]
+    state["updated"] = datetime.now().isoformat(timespec="seconds")
+    write_json(state_path, state)
 
 
 if __name__ == "__main__":

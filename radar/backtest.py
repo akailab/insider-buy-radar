@@ -15,7 +15,7 @@ from typing import Callable
 from . import signals as sig
 from .engine import LABELS, load_config, score_row
 from .history_db import HistoryDB, last_published_quarter_guess, quarters_between
-from .sec_client import SecClient
+from .sec_client import SecClient, SecError
 
 Progress = Callable[[str, int, int], None]
 HORIZONS = {"3m": 63, "6m": 126, "12m": 252}
@@ -73,27 +73,42 @@ def run_backtest(client: SecClient, start_year: int = 2019, min_value: float = 2
     if not spy:
         raise RuntimeError("Couldn't download S&P 500 (SPY) prices from Yahoo Finance.")
 
-    results, no_price = [], 0
+    results, no_price, skipped = [], 0, 0
     so_cache: dict[str, list] = {}
     for ti, t in enumerate(tickers):
         progress("Backtest: scoring historical buys & measuring returns", ti, len(tickers))
-        s = sig.Series(client.yahoo_prices(t, start=date(start_year - 2, 1, 1)))
+        try:
+            s = sig.Series(client.yahoo_prices(t, start=date(start_year - 2, 1, 1)))
+        except SecError:
+            raise  # the SEC blocking us is worth stopping for
+        except Exception as e:
+            print(f"Backtest: skipped {t} (price data problem: {e})", flush=True)
+            no_price += len(by_ticker[t])
+            continue
         if not s:
             no_price += len(by_ticker[t])
             continue
         for b in by_ticker[t]:
-            r = _historical_row(b, hdb, s, spy, client, so_cache)
-            if r is None:
+            try:  # one odd filing or price glitch must never sink a 30-minute run
+                r = _historical_row(b, hdb, s, spy, client, so_cache)
+                if r is None:
+                    continue
+                score_row(r, cfg)
+                for h, n in HORIZONS.items():
+                    ret, ex = sig.forward_excess(s, spy, b["filed"], n)
+                    r[f"ret_{h}"], r[f"ex_{h}"] = ret, ex
+            except SecError:
+                raise
+            except Exception as e:
+                skipped += 1
+                if skipped <= 20:
+                    print(f"Backtest: skipped a {t} buy filed {b.get('filed')} ({type(e).__name__}: {e})", flush=True)
                 continue
-            score_row(r, cfg)
-            for h, n in HORIZONS.items():
-                ret, ex = sig.forward_excess(s, spy, b["filed"], n)
-                r[f"ret_{h}"], r[f"ex_{h}"] = ret, ex
             results.append(r)
     progress("Backtest: scoring historical buys & measuring returns", len(tickers), len(tickers))
     return summarise(results, cfg, {
         "start_year": start_year, "min_value": min_value, "buys_found": len(buys), "tickers_tested": len(tickers),
-        "dropped_no_prices": no_price, "missing_quarters": missing, "run_at": datetime.now().isoformat(timespec="seconds"),
+        "dropped_no_prices": no_price, "skipped_bad_data": skipped, "missing_quarters": missing, "run_at": datetime.now().isoformat(timespec="seconds"),
         "data_through": hdb.coverage_end(),
     })
 

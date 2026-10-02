@@ -12,6 +12,7 @@ with context (leadership, committee oversight overlap, C-suite buying in the sam
 from __future__ import annotations
 
 import io
+from bisect import bisect_right
 import json
 import re
 import ssl
@@ -540,8 +541,52 @@ class CongressScanner:
         return out
 
 
+def priceable(t: dict) -> bool:
+    """Stock purchases we can compare with today's price (options and sells are skipped)."""
+    return t.get("type") == "Buy" and t.get("asset_type") == "Stock" and bool(t.get("ticker")) and bool(t.get("trade_date"))
+
+
+def add_prices(sec: SecClient, trades: list[dict], progress: Progress = lambda *a: None) -> dict:
+    """Estimate each Congress purchase price and compare it with the latest price.
+
+    Disclosures give only a dollar range, never the price paid, so the purchase price is
+    estimated as the stock's closing price on the trade date (Yahoo Finance, split-adjusted).
+    Adds buy_price, price_now, price_asof, price_change (fraction) and below_buy to each buy."""
+    for t in trades:  # drop old numbers (e.g. on rows kept from the last run) so nothing goes stale
+        for k in ("buy_price", "price_now", "price_asof", "price_change", "below_buy"):
+            t.pop(k, None)
+    buys = [t for t in trades if priceable(t)]
+    by_ticker: dict[str, list[dict]] = {}
+    for t in buys:
+        by_ticker.setdefault(t["ticker"].upper(), []).append(t)
+    priced = failed = 0
+    tickers = sorted(by_ticker)
+    for i, tk in enumerate(tickers):
+        progress("Congress: checking prices of purchased stocks", i, len(tickers))
+        rows = by_ticker[tk]
+        first = min(date.fromisoformat(r["trade_date"]) for r in rows) - timedelta(days=10)
+        data = sec.yahoo_prices(tk, start=first.replace(day=1))  # 1st of month keeps the cache key stable
+        if not data or not data.get("d"):
+            failed += 1
+            continue
+        d, c, last = data["d"], data["c"], data.get("last") or data["c"][-1]
+        for r in rows:
+            j = bisect_right(d, r["trade_date"]) - 1
+            if j < 0 or not c[j] or not last:
+                continue
+            r["buy_price"] = round(c[j], 2)
+            r["price_now"] = round(float(last), 2)
+            r["price_asof"] = d[-1]
+            r["price_change"] = round(float(last) / c[j] - 1, 4)
+            r["below_buy"] = float(last) < c[j]
+            priced += 1
+    progress("Congress: checking prices of purchased stocks", len(tickers), len(tickers))
+    return {"buys": len(buys), "priced": priced, "tickers_without_prices": failed}
+
+
 def run_congress_scan(sec: SecClient, days: int = 90, insider_rows: list[dict] | None = None,
-                      previous: dict | None = None, progress: Progress = lambda *a: None) -> dict:
+                      previous: dict | None = None, progress: Progress = lambda *a: None,
+                      use_prices: bool = True) -> dict:
     """Collect the last `days` of disclosed trades. A chamber that fails keeps its previous data."""
     sc = CongressScanner(sec)
     since = date.today() - timedelta(days=days)
@@ -566,6 +611,13 @@ def run_congress_scan(sec: SecClient, days: int = 90, insider_rows: list[dict] |
             trades += kept
             status[chamber]["kept_previous"] = len(kept)
     trades.sort(key=lambda r: (r["filed"] or "", r["trade_date"] or ""), reverse=True)
+    prices = None
+    if use_prices:
+        try:
+            prices = add_prices(sec, trades, progress)
+        except Exception as e:  # prices are a bonus; never lose the feed over them
+            prices = {"error": str(e)[:300]}
     return {"meta": {"scanned_at": datetime.now().isoformat(timespec="seconds"), "days": days,
-                     "from": since.isoformat(), "sources": status, "members_loaded": len(members)},
+                     "from": since.isoformat(), "sources": status, "members_loaded": len(members),
+                     "prices": prices},
             "trades": trades}

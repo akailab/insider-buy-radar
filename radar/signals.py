@@ -56,6 +56,8 @@ class Series:
         self.c = data["c"] if data else []
         self.v = data["v"] if data else []
         self.a = (data.get("a") or data["c"]) if data else []  # dividend-adjusted closes for returns
+        if len(self.a) != len(self.c) or any(not x or x <= 0 for x in self.a):
+            self.a = self.c  # bad/zero adjusted prices (seen on some penny stocks): fall back to split-adjusted closes
         self.last = data.get("last") if data else None
 
     def __bool__(self) -> bool:
@@ -109,10 +111,13 @@ def forward_excess(s: Series, spy: Series, filed: str, days: int) -> tuple[float
     i = s.idx_after(filed)
     if i is None or i + days >= len(s.c):
         return None, None
-    r = s.a[i + days] / s.a[i] - 1
+    p0, p1 = s.a[i], s.a[i + days]
+    if not p0 or not p1 or p0 <= 0 or p1 <= 0 or not 0.002 < p1 / p0 < 50:
+        return None, None  # missing or obviously broken price data - leave this one out
+    r = p1 / p0 - 1
     j = spy.idx_on_or_after(s.d[i])
     k = spy.idx_on_or_after(s.d[i + days])
-    if j is None or k is None:
+    if j is None or k is None or not spy.a[j] or not spy.a[k]:
         return r, None
     return r, r - (spy.a[k] / spy.a[j] - 1)
 

@@ -1,4 +1,5 @@
-"""E-mail alerts for new high-scoring trades (Gmail or any SMTP server)."""
+"""E-mail alerts (Gmail or any SMTP server): new high-scoring insider buys, and Congress purchases
+whose stock has fallen below the member's estimated purchase price."""
 from __future__ import annotations
 
 import html
@@ -69,7 +70,66 @@ def build_email(rows: list[dict], app_url: str, min_score: float) -> tuple[str, 
 
 
 def send(rows: list[dict], app_url: str, min_score: float, settings: dict) -> None:
-    subject, body_html, body_text = build_email(rows, app_url, min_score)
+    deliver(*build_email(rows, app_url, min_score), settings)
+
+
+# ------------------------------------------------------------------ Congress price-drop alerts
+def honor(t: dict) -> str:
+    title = "Sen." if t.get("chamber") == "Senate" else "Rep."
+    tag = "-".join(x for x in (t.get("party"), t.get("state")) if x)
+    return f"{title} {t.get('member', '')}" + (f" ({tag})" if tag else "")
+
+
+def _px(v: float | None) -> str:
+    return f"${v:,.2f}" if v is not None else "?"
+
+
+def build_congress_email(trades: list[dict], app_url: str, drop_pct: float) -> tuple[str, str, str]:
+    trades = sorted(trades, key=lambda t: t.get("price_change") or 0)  # biggest drop first
+    top = trades[0]
+    subject = (f"Congress alert: {top['ticker']} is {abs(top['price_change']) * 100:.1f}% below "
+               f"{honor(top).split(' (')[0]}'s purchase price")
+    if len(trades) > 1:
+        subject += f" + {len(trades) - 1} more"
+    cards, lines = [], []
+    for t in trades[:20]:
+        link = f"{app_url}#c={t['id']}" if app_url else t["url"]
+        who = honor(t) + ("" if t.get("owner", "Self") == "Self" else f" · {t['owner'].lower()}'s account")
+        extra = []
+        if t.get("oversight"):
+            extra.append("Sits on a committee that oversees this industry")
+        if t.get("key_person"):
+            extra.append("Party leader or committee chair")
+        cards.append(f"""
+<tr><td style="padding:14px 0;border-bottom:1px solid #e5e7eb">
+  <div style="font-size:18px;font-weight:700">{html.escape(t['ticker'])} <span style="color:#6b7280;font-weight:400;font-size:14px">{html.escape(t.get('company') or '')}</span></div>
+  <div style="margin:4px 0;font-size:14px">{html.escape(who)} bought <b>{html.escape(t.get('amount') or '')}</b> on {t['trade_date']}</div>
+  <div style="margin:4px 0;font-size:14px">Est. buy price <b>{_px(t['buy_price'])}</b> → now <b>{_px(t['price_now'])}</b>
+    <b style="color:#b42318">({t['price_change'] * 100:+.1f}%)</b></div>
+  {''.join(f'<div style="font-size:12px;color:#8a5a00">• {html.escape(x)}</div>' for x in extra)}
+  <a href="{html.escape(link)}" style="font-size:13px">Open in Insider Radar</a> · <a href="{html.escape(t['url'])}" style="font-size:13px">Disclosure</a>
+</td></tr>""")
+        lines.append(f"{t['ticker']}: {who} bought {t.get('amount', '')} on {t['trade_date']}; est. buy {_px(t['buy_price'])}, "
+                     f"now {_px(t['price_now'])} ({t['price_change'] * 100:+.1f}%) - {link}")
+    more = len(trades) - 20
+    rule = "below" if not drop_pct else f"at least {drop_pct:g}% below"
+    body_html = f"""<html><body style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111827;max-width:620px">
+<p style="font-size:15px">{len(trades)} stock{'s' if len(trades) > 1 else ''} bought by members of Congress {'are' if len(trades) > 1 else 'is'} now trading {rule} the estimated purchase price.</p>
+<table style="width:100%;border-collapse:collapse">{''.join(cards)}</table>
+{f'<p style="font-size:13px">…and {more} more in the app (Congress tab, "Below buy price" filter).</p>' if more > 0 else ''}
+<p style="font-size:12px;color:#6b7280;margin-top:18px">Members of Congress disclose only a dollar range, not the price they paid, so the
+purchase price is estimated as the stock's closing price on the trade date. You get one e-mail per trade.
+Insider Radar · not investment advice.{f'<br><a href="{html.escape(app_url)}">Open the app</a>' if app_url else ''}</p></body></html>"""
+    body_text = "\n".join(lines) + ("\n...and %d more in the app." % more if more > 0 else "") + \
+        "\n\nPurchase price = closing price on the trade date (disclosures give only a range). Not investment advice."
+    return subject, body_html, body_text
+
+
+def send_congress(trades: list[dict], app_url: str, drop_pct: float, settings: dict) -> None:
+    deliver(*build_congress_email(trades, app_url, drop_pct), settings)
+
+
+def deliver(subject: str, body_html: str, body_text: str, settings: dict) -> None:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"Insider Radar <{settings['user'] or settings['to']}>"

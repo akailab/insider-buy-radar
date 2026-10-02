@@ -1,5 +1,5 @@
 // Insider Radar service worker: app works offline and opens instantly from the home screen.
-const CACHE = "insider-radar-v4";
+const CACHE = "insider-radar-v5";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png"];
 
 self.addEventListener("install", (e) => {

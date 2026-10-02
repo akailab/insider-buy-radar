@@ -66,7 +66,7 @@ def scan_worker(params: dict) -> None:
         save_json(RESULTS_FILE, result)
         try:  # Congress trades (a separate, unranked feed); failures here never block the insider scan
             cres = run_congress_scan(client, days=90, insider_rows=result["rows"], previous=load_json(CONGRESS_FILE, None),
-                                     progress=progress)
+                                     progress=progress, use_prices=bool(params.get("use_prices", True)))
             save_json(CONGRESS_FILE, cres)
         except Exception:
             traceback.print_exc()

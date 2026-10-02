@@ -3,7 +3,7 @@
 Finds **meaningful open-market stock purchases by C-suite executives** (CEO, CFO, COO, President, CTO and other "Chief … Officers") in SEC Form 4 filings, and scores each one from 0 to 100.
 
 * **iPhone app:** a home-screen web app, refreshed twice every weekday by GitHub (free). See **[SETUP.md](SETUP.md)**.
-* **E-mail alerts:** sent when a new buy scores 70 or higher.
+* **E-mail alerts:** sent when a new buy scores 70 or higher, and when a stock a member of Congress bought falls below their purchase price.
 * **Backtest:** checks whether high scores actually beat the S&P 500 in the past.
 * **Desktop mode:** double-click `Start (Mac).command` or `Start (Windows).bat` to run scans on your own computer. Needs Python 3.9+.
 
@@ -19,6 +19,8 @@ The app also has a **Congress** tab. It lists stock and stock-option trades that
   * Spouse, joint or child ownership.
   * Late disclosure: more than 45 days after the trade.
   * **C-suite buying too:** the stock also appears in the insider scan.
+  * **Below buy price:** the stock now trades below the member's estimated purchase price.
+* **Price-drop e-mail alert:** for stock purchases (not options or sells) of $15,001 or more, the scan compares the latest price with the closing price on the trade date. Disclosures give only a dollar range, never the price paid, so that close is the estimated purchase price (Yahoo Finance, split-adjusted). The first time a purchase drops below it, you get one e-mail listing every such trade from that run, biggest drop first. Each trade is e-mailed once (`docs/data/congress_alerted.json`). Optional GitHub variables: `CONGRESS_DROP_PCT` (e.g. `5` = only when 5% or more below; default any drop), `CONGRESS_ALERT_MIN_AMOUNT` (default `15001`), `CONGRESS_ALERTS` (`off` turns these e-mails off).
 * **Default filter:** reported amount of $15,001 or more. You can change it, along with chamber, party, buy/sell and the tags.
 * **If one chamber's site can't be reached** on a run, that chamber's last good data is kept and the app says so.
 

@@ -30,6 +30,14 @@ DATASET_PAGE = f"{SEC_WWW}/data-research/sec-markets-data/insider-transactions-d
 DATASET_URL = f"{SEC_WWW}/files/structureddata/data/insider-transactions-data-sets/{{q}}_form345.zip"
 
 
+
+def _sig(x) -> float | None:
+    """Keep 7 significant digits (fixed decimals would turn tiny adjusted penny-stock prices into 0)."""
+    try:
+        return float(f"{float(x):.7g}") if x is not None else None
+    except (TypeError, ValueError):
+        return None
+
 class SecError(RuntimeError):
     pass
 
@@ -325,11 +333,13 @@ class SecClient:
                 adj = ((res["indicators"].get("adjclose") or [{}])[0].get("adjclose")) or [None] * n
                 d, c, v, a = [], [], [], []
                 for ts, close, vol, ac in zip(res["timestamp"], q["close"], q.get("volume") or [None] * n, adj):
-                    if close:
+                    close = _sig(close)
+                    if close and close > 0:
                         d.append(datetime.fromtimestamp(ts, timezone.utc).date().isoformat())
-                        c.append(round(float(close), 4))
+                        c.append(close)
                         v.append(int(vol or 0))
-                        a.append(round(float(ac), 4) if ac else round(float(close), 4))
+                        ac = _sig(ac)
+                        a.append(ac if ac and ac > 0 else close)
                 if d:
                     value = {"d": d, "c": c, "v": v, "a": a, "last": res.get("meta", {}).get("regularMarketPrice") or c[-1]}
             except (KeyError, IndexError, TypeError, ValueError):
