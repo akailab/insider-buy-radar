@@ -47,7 +47,7 @@ class Http:
     """Small polite HTTP helper with an optional cookie jar (the Senate site needs one)."""
 
     def __init__(self, contact_email: str, per_second: float = 2.0, cookies: bool = False):
-        self.ua = f"InsiderRadar/2.0 (personal research on public STOCK Act data; {contact_email})"
+        self.ua = f"Insider Radar Research {contact_email}"
         self.limiter = RateLimiter(per_second)
         handlers: list = [urllib.request.HTTPSHandler(context=_ssl_context())]
         self.jar = CookieJar() if cookies else None
@@ -377,7 +377,11 @@ class CongressScanner:
     def ticker_map(self) -> dict[str, dict]:
         found, val = self.cache.get_kv("sec:tickers", 7 * 86400)
         if not found:
-            raw = self.sec.get(SEC_TICKERS, ttl=7 * 86400)
+            try:
+                raw = self.sec.get(SEC_TICKERS, ttl=7 * 86400)
+            except Exception:  # SEC unreachable: fall back to the last saved list, or names as reported
+                found, val = self.cache.get_kv("sec:tickers", None)
+                return val or {}
             data = json.loads(raw) if raw else {}
             val = {v["ticker"].upper(): {"cik": str(v["cik_str"]), "name": v["title"]} for v in data.values()}
             self.cache.put_kv("sec:tickers", val)
@@ -386,7 +390,10 @@ class CongressScanner:
     def industry(self, cik: str) -> tuple[str, int | None]:
         found, val = self.cache.get_kv(f"sic:{cik}", 30 * 86400)
         if not found:
-            subs = self.sec.submissions(cik, ttl=30 * 86400) or {}
+            try:
+                subs = self.sec.submissions(cik, ttl=30 * 86400) or {}
+            except Exception:
+                return "", None
             try:
                 sic = int(subs.get("sic") or 0) or None
             except ValueError:

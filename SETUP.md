@@ -54,6 +54,7 @@ In your repository, go to **Settings**, then **Secrets and variables**, then **A
 | `ALERT_EMAIL_TO` | Where alerts should go (can be the same e-mail) |
 | `SMTP_USER` | Your Gmail address |
 | `SMTP_PASSWORD` | The 16-letter app password from Step 4 |
+| `SEC_CONTACT_NAME` *(optional)* | Your name, e.g. `Shweta B`. The SEC asks automated tools to identify themselves as "Name email"; without it the app uses "Insider Radar Research" |
 
 **Optional:** to change the alert threshold, open the **Variables** tab on the same page and add `ALERT_MIN_SCORE` with a value such as `60`.
 
@@ -104,7 +105,7 @@ Already set up? You don't need to redo the steps above. Your secrets, Gmail pass
 
 * **A red ✗ in the Actions tab:** click the run and open the step with the red mark to see the error.
   * *"Set SEC_CONTACT_EMAIL"*: the secret from Step 5 is missing or misspelled.
-  * *"SEC refused the request (403)"*: the SEC is limiting traffic. It usually works on the next run.
+  * *"SEC refused the request (403)"*: read the rest of the message. "Undeclared Automated Tool" means the SEC didn't accept the contact details: check that `SEC_CONTACT_EMAIL` is a real address, and add `SEC_CONTACT_NAME`. Otherwise the SEC is limiting traffic, and it usually works on the next run. Either way the app keeps showing the previous scan with a notice, and the Congress tab still updates.
   * *"Username and Password not accepted"*: `SMTP_USER` or `SMTP_PASSWORD` is wrong. Create a new app password (Step 4) and update the secret.
 * **"e-mail isn't configured" in the log:** one of the three e-mail secrets is missing.
 * **Congress tab says House or Senate "couldn't be refreshed":** that site was unreachable on the last run, so the app shows the last saved data. The Senate site sometimes blocks cloud servers. Running the desktop app from home usually works.

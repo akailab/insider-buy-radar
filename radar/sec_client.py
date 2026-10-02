@@ -125,7 +125,9 @@ class SecClient:
     def __init__(self, contact_email: str, per_second: float = 8.0, cache_dir: Path = CACHE_DIR):
         if not contact_email or "@" not in contact_email:
             raise SecError("SEC requires a contact e-mail in the User-Agent. Add yours in Settings.")
-        self.user_agent = f"InsiderBuyRadar/2.0 (personal research; {contact_email})"
+        # SEC fair-access format: "Sample Company Name AdminContact@<sample company domain>.com"
+        name = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 &.,-]", "", os.environ.get("SEC_CONTACT_NAME", ""))).strip() or "Insider Radar Research"
+        self.user_agent = f"{name} {contact_email.strip()}"
         self.limiter = RateLimiter(per_second)
         self.yahoo_limiter = RateLimiter(2.0)
         self.yahoo_failures = 0
@@ -152,11 +154,23 @@ class SecClient:
                 if e.code == 404:
                     return 404, b""
                 last_err = e
-                if e.code == 403 and attempt >= 2 and "sec.gov" in url:
-                    raise SecBlocked(
-                        "SEC refused the request (HTTP 403). This usually means requests were too fast or the "
-                        "contact e-mail is missing. Wait a few minutes and try again."
-                    ) from e
+                if e.code == 403 and "sec.gov" in url:
+                    try:
+                        body = e.read()[:4000].decode("utf-8", "replace")
+                    except Exception:
+                        body = ""
+                    snippet = re.sub(r"\s+", " ", re.sub(r"(?s)<[^>]+>", " ", body)).strip()[:240]
+                    if re.search(r"undeclared automated tool", body, re.I):
+                        raise SecBlocked(
+                            "SEC refused the request (HTTP 403, 'Undeclared Automated Tool'): it didn't accept the "
+                            f"User-Agent '{self.user_agent}'. Check that SEC_CONTACT_EMAIL is a real address. SEC said: {snippet}"
+                        ) from e
+                    if attempt >= 2:
+                        raise SecBlocked(
+                            "SEC refused the request (HTTP 403). Either requests were too fast (SEC pauses access for "
+                            "about 10 minutes) or SEC is blocking this network. "
+                            f"User-Agent sent: '{self.user_agent}'. SEC said: {snippet or '(no message)'}"
+                        ) from e
                 if e.code in (400, 401):
                     return e.code, b""
                 time.sleep(min(30, 2 * 2**attempt))

@@ -23,7 +23,7 @@ sys.path.insert(0, str(HERE))
 from radar import alerts  # noqa: E402
 from radar.congress import run_congress_scan  # noqa: E402
 from radar.engine import run_scan  # noqa: E402
-from radar.sec_client import SecClient  # noqa: E402
+from radar.sec_client import SecClient, SecError  # noqa: E402
 
 DATA = HERE / "docs" / "data"
 
@@ -71,8 +71,21 @@ def main() -> int:
             last[0] = time.time()
             print(f"[{time.time() - t0:6.0f}s] {stage}: {done}/{total}", flush=True)
 
-    result = run_scan(client, days=args.days, include_live=True, deep_min=args.deep_min,
-                      use_prices=not args.no_prices, progress=progress)
+    try:
+        result = run_scan(client, days=args.days, include_live=True, deep_min=args.deep_min,
+                          use_prices=not args.no_prices, progress=progress)
+    except SecError as e:
+        # Keep the app working: publish the previous scan with a notice, and still build the Congress feed.
+        print(f"::error title=Insider scan could not reach the SEC::{e}", flush=True)
+        try:
+            result = json.loads((client.cache_dir / "latest.json").read_text())
+        except (OSError, ValueError):
+            result = {"meta": {"scanned_at": datetime.now().isoformat(timespec="seconds"), "from": "", "to": "",
+                               "filings_checked": 0, "days_from_index": [], "weights": {}, "labels": {}}, "rows": []}
+        result["meta"]["refresh_error"] = str(e)
+        result["meta"]["refresh_failed_at"] = datetime.now().isoformat(timespec="seconds")
+    else:
+        result["meta"].pop("refresh_error", None)
     result["meta"]["app_url"] = app_url()
     write_json(Path(args.out), result)
     write_json(client.cache_dir / "latest.json", result)  # kept with the cache so every deploy can publish it
@@ -81,7 +94,8 @@ def main() -> int:
     # Small heartbeat file (committed by the workflow so the schedule stays active)
     write_json(DATA / "status.json", {"last_scan": result["meta"]["scanned_at"], "buys": len(rows),
                                       "very_strong": sum(1 for r in rows if r["score"] >= 70),
-                                      "filings_checked": result["meta"]["filings_checked"]})
+                                      "filings_checked": result["meta"]["filings_checked"],
+                                      "refresh_error": result["meta"].get("refresh_error")})
 
     if not args.no_congress:
         try:

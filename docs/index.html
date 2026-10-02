@@ -336,6 +336,7 @@ function renderTrades() {
       <div class="stat"><b>${new Set(list.map((r) => r.issuer_cik)).size}</b><span>Companies</span></div>
     </div>` : ""}
     ${OFFLINE && DATA && DATA.meta ? `<div class="banner">You're offline — showing the last saved scan.</div>` : ""}
+    ${DATA && DATA.meta && DATA.meta.refresh_error ? `<div class="banner">The last update couldn't reach the SEC, so this is the previous scan. Check the latest run in GitHub → Actions for details.</div>` : ""}
     <div class="list">${list.length ? cards : empty}</div>
     ${list.length ? `<p class="note">Tap a buy to see why it scored the way it did. Not investment advice.</p>` : ""}`;
   $("q").oninput = (e) => { F.q = e.target.value; save("ibr-filters", F); const pos = e.target.selectionStart; renderTrades(); const q = $("q"); q.focus(); q.setSelectionRange(pos, pos); };
