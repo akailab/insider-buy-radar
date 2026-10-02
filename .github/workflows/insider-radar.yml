@@ -55,6 +55,21 @@ jobs:
           key: radar-${{ github.run_id }}
           restore-keys: radar-
 
+      - name: Check SEC access (diagnostic, never fails the run)
+        if: github.event.schedule != '30 8 1 * *' && (github.event_name != 'workflow_dispatch' || inputs.task == 'scan')
+        continue-on-error: true
+        run: |
+          UA="${SEC_CONTACT_NAME:-Insider Radar Research} $SEC_CONTACT_EMAIL"
+          echo "Runner public IP: $(curl -s https://api.ipify.org || echo unknown)"
+          for u in https://www.sec.gov/files/company_tickers.json \
+                   https://www.sec.gov/Archives/edgar/daily-index/index.json \
+                   https://data.sec.gov/submissions/CIK0000320193.json; do
+            code=$(curl -s -o /tmp/sec_body --compressed -A "$UA" -w "%{http_code}" "$u")
+            echo "HTTP $code  $u"
+            if [ "$code" != "200" ]; then sed 's/<[^>]*>/ /g' /tmp/sec_body | tr -s ' \n' ' ' | head -c 400; echo; fi
+            sleep 1
+          done
+
       - name: Daily scan
         if: github.event.schedule != '30 8 1 * *' && (github.event_name != 'workflow_dispatch' || inputs.task == 'scan')
         run: python scan.py --days 30 --alert
