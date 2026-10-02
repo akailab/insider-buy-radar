@@ -164,6 +164,10 @@ class SecClient:
                         body = raw_body[:6000].decode("utf-8", "replace")
                     except Exception:
                         body = ""
+                    # EDGAR's file store answers a request for a file that doesn't exist (a holiday's daily index,
+                    # a filing not yet published) with an Amazon S3 "AccessDenied" error instead of 404.
+                    if re.search(r"<Code>\s*AccessDenied\s*</Code>", body) or ("AccessDenied" in body and "HostId" in body):
+                        return 404, b""
                     snippet = re.sub(r"\s+", " ", re.sub(r"(?s)<[^>]+>", " ", body)).strip()[:240]
                     if re.search(r"undeclared automated tool", body, re.I):
                         raise SecBlocked(
