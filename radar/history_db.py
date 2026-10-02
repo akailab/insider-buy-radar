@@ -111,6 +111,9 @@ class HistoryDB:
             return []
         listing = client.dataset_quarters()
         failed = []
+        if listing:  # only ask for quarters the SEC has published
+            failed = [q for q in todo if q not in listing]
+            todo = [q for q in todo if q in listing]
         for i, q in enumerate(todo):
             progress("Building insider history database (one-time, SEC bulk data)", i, len(todo))
             try:

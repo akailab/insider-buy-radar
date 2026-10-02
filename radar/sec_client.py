@@ -131,17 +131,19 @@ class SecClient:
         self.limiter = RateLimiter(per_second)
         self.yahoo_limiter = RateLimiter(2.0)
         self.yahoo_failures = 0
+        self.block_waits = 0
         self.cache_dir = Path(cache_dir)
         self.cache = Cache(self.cache_dir / "cache.sqlite3")
         self.ctx = _ssl_context()
 
     # ------------------------------------------------------------------ http
-    def _fetch(self, url: str, headers: dict, limiter: RateLimiter, timeout: int = 60, attempts: int = 5) -> tuple[int, bytes]:
+    def _fetch(self, url: str, headers: dict, limiter: RateLimiter, timeout: int = 60, attempts: int = 5,
+               patient: bool = True) -> tuple[int, bytes]:
         """Returns (status, body). Retries transient errors. Raises SecBlocked/SecError."""
         last_err: Exception | None = None
         for attempt in range(attempts):
             limiter.wait()
-            req = urllib.request.Request(url, headers={**headers, "Accept-Encoding": "gzip, deflate"})
+            req = urllib.request.Request(url, headers={"Accept": "*/*", **headers, "Accept-Encoding": "gzip, deflate"})
             try:
                 with urllib.request.urlopen(req, timeout=timeout, context=self.ctx) as resp:
                     raw = resp.read()
@@ -156,7 +158,10 @@ class SecClient:
                 last_err = e
                 if e.code == 403 and "sec.gov" in url:
                     try:
-                        body = e.read()[:4000].decode("utf-8", "replace")
+                        raw_body = e.read()
+                        if raw_body[:2] == b"\x1f\x8b":  # SEC sends its error page gzip-compressed
+                            raw_body = gzip.decompress(raw_body)
+                        body = raw_body[:6000].decode("utf-8", "replace")
                     except Exception:
                         body = ""
                     snippet = re.sub(r"\s+", " ", re.sub(r"(?s)<[^>]+>", " ", body)).strip()[:240]
@@ -165,12 +170,18 @@ class SecClient:
                             "SEC refused the request (HTTP 403, 'Undeclared Automated Tool'): it didn't accept the "
                             f"User-Agent '{self.user_agent}'. Check that SEC_CONTACT_EMAIL is a real address. SEC said: {snippet}"
                         ) from e
-                    if attempt >= 2:
-                        raise SecBlocked(
-                            "SEC refused the request (HTTP 403). Either requests were too fast (SEC pauses access for "
-                            "about 10 minutes) or SEC is blocking this network. "
-                            f"User-Agent sent: '{self.user_agent}'. SEC said: {snippet or '(no message)'}"
-                        ) from e
+                    # A rate block lasts about 10 minutes: wait it out (at most twice per run) before giving up
+                    if patient and self.block_waits < 2 and not re.search(r"access denied", body, re.I):
+                        wait = (90, 240)[self.block_waits]
+                        self.block_waits += 1
+                        print(f"SEC returned 403 ({snippet[:80] or 'no message'}); waiting {wait}s before retrying", flush=True)
+                        time.sleep(wait)
+                        continue
+                    raise SecBlocked(
+                        "SEC refused the request (HTTP 403). Either requests were too fast (SEC pauses access for "
+                        "about 10 minutes) or SEC is blocking this network. "
+                        f"User-Agent sent: '{self.user_agent}'. SEC said: {snippet or '(no message)'}"
+                    ) from e
                 if e.code in (400, 401):
                     return e.code, b""
                 time.sleep(min(30, 2 * 2**attempt))
@@ -199,7 +210,7 @@ class SecClient:
         return text
 
     def get_bytes(self, url: str) -> bytes | None:
-        status, raw = self._fetch(url, {"User-Agent": self.user_agent}, self.limiter, timeout=300)
+        status, raw = self._fetch(url, {"User-Agent": self.user_agent}, self.limiter, timeout=300, attempts=2, patient=False)
         return raw if status == 200 else None
 
     # ------------------------------------------------------------ endpoints
