@@ -32,15 +32,16 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     env:
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+      SEC_CONTACT_NAME: ${{ secrets.SEC_CONTACT_NAME }}
       ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       ALERT_MIN_SCORE: ${{ vars.ALERT_MIN_SCORE }}
       PYTHONUNBUFFERED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -48,7 +49,7 @@ jobs:
         run: pip install --quiet pypdf certifi
 
       - name: Restore saved SEC data
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.insider_radar
           key: radar-${{ github.run_id }}
@@ -64,7 +65,7 @@ jobs:
 
       - name: Save SEC data for next time
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.insider_radar
           key: radar-${{ github.run_id }}
@@ -88,9 +89,9 @@ jobs:
             if [ ! -f "docs/data/$f" ] && [ -f ~/.insider_radar/$f ]; then cp ~/.insider_radar/$f "docs/data/$f"; fi
           done
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
