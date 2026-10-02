@@ -1,0 +1,96 @@
+# Insider Radar: daily scan + e-mail alerts + monthly backtest, published to GitHub Pages.
+name: Insider Radar
+
+on:
+  schedule:
+    - cron: "15 11 * * 2-6"   # ~7:15 AM New York, Tue-Sat: yesterday's complete filings
+    - cron: "45 22 * * 1-5"   # ~6:45 PM New York, Mon-Fri: today's filings so far
+    - cron: "30 8 1 * *"      # 1st of each month: backtest
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What to run"
+        type: choice
+        options: [scan, backtest]
+        default: scan
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: insider-radar
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+      ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      ALERT_MIN_SCORE: ${{ vars.ALERT_MIN_SCORE }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PDF reader (House trade reports are PDFs)
+        run: pip install --quiet pypdf certifi
+
+      - name: Restore saved SEC data
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.insider_radar
+          key: radar-${{ github.run_id }}
+          restore-keys: radar-
+
+      - name: Daily scan
+        if: github.event.schedule != '30 8 1 * *' && (github.event_name != 'workflow_dispatch' || inputs.task == 'scan')
+        run: python scan.py --days 30 --alert
+
+      - name: Backtest
+        if: github.event.schedule == '30 8 1 * *' || (github.event_name == 'workflow_dispatch' && inputs.task == 'backtest')
+        run: python run_backtest.py --start-year 2019
+
+      - name: Save SEC data for next time
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.insider_radar
+          key: radar-${{ github.run_id }}
+
+      - name: Commit results
+        run: |
+          git config user.name "insider-radar-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Only small files are committed; the full results are published straight to GitHub Pages
+          for f in docs/data/status.json docs/data/alerted.json docs/data/backtest.json; do
+            if [ -f "$f" ]; then git add -f "$f"; fi
+          done
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Update data $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git pull --rebase --autostash || true
+          git push
+
+      - name: Include the latest scan in the website
+        run: |
+          for f in latest.json congress.json; do
+            if [ ! -f "docs/data/$f" ] && [ -f ~/.insider_radar/$f ]; then cp ~/.insider_radar/$f "docs/data/$f"; fi
+          done
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4
